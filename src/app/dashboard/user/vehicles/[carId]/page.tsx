@@ -1,0 +1,561 @@
+
+'use client';
+
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import { useAuth } from "@/src/hooks/useAuth";
+import { getMechanics, type MechanicProfile } from "@/src/lib/auth";
+import {
+  deleteCarForUser,
+  getCarByIdForUser,
+  getMaintenanceForCar,
+  getRepairRequestsForCar,
+  scheduleRepairForCar,
+  updateCarForUser,
+  type Car,
+  type MaintenanceEntry,
+  type RepairRequest,
+} from "@/src/lib/cars";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/src/components/ui/card";
+import { Button } from "@/src/components/ui/button";
+import { Input } from "@/src/components/ui/input";
+import { Badge } from "@/src/components/ui/badge";
+
+export default function VehicleDetailsPage() {
+  const { user } = useAuth();
+  const router = useRouter();
+  const params = useParams<{ carId: string }>();
+  const carId = useMemo(() => params?.carId ?? "", [params]);
+
+  const [car, setCar] = useState<Car | null>(null);
+  const [repairRequests, setRepairRequests] = useState<RepairRequest[]>([]);
+  const [maintenance, setMaintenance] = useState<MaintenanceEntry[]>([]);
+  const [mechanics, setMechanics] = useState<MechanicProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingCar, setEditingCar] = useState(false);
+  const [savingCar, setSavingCar] = useState(false);
+  const [deletingCar, setDeletingCar] = useState(false);
+  const [schedulingRepair, setSchedulingRepair] = useState(false);
+  const [carForm, setCarForm] = useState<Omit<Car, "id" | "ownerId">>({
+    make: "",
+    model: "",
+    mileage: 0,
+    year: new Date().getFullYear(),
+    fuelType: "",
+    drivetrain: "",
+    transmission: "",
+    vin: "",
+  });
+
+  const [selectedMechanicId, setSelectedMechanicId] = useState("");
+  const [repairNote, setRepairNote] = useState("");
+  const [preferredDate, setPreferredDate] = useState("");
+
+  useEffect(() => {
+    if (!user) return;
+    if (user.role === "mechanic") {
+      router.replace("/dashboard/mechanic");
+      return;
+    }
+
+    const run = async () => {
+      setLoading(true);
+      const [carResult, mechanicsResult] = await Promise.all([
+        getCarByIdForUser(user.uid, carId),
+        getMechanics(),
+      ]);
+
+      if (!carResult) {
+        setCar(null);
+        setRepairRequests([]);
+        setMaintenance([]);
+        setMechanics(mechanicsResult);
+        setLoading(false);
+        return;
+      }
+
+      const [requests, maintenanceEntries] = await Promise.all([
+        getRepairRequestsForCar(user.uid, carId),
+        getMaintenanceForCar(user.uid, carId),
+      ]);
+      setCar(carResult);
+      setCarForm({
+        make: carResult.make,
+        model: carResult.model,
+        mileage: carResult.mileage,
+        year: carResult.year,
+        fuelType: carResult.fuelType,
+        drivetrain: carResult.drivetrain,
+        transmission: carResult.transmission,
+        vin: carResult.vin,
+      });
+      setMechanics(mechanicsResult);
+      setSelectedMechanicId(mechanicsResult[0]?.uid ?? "");
+      setRepairRequests(requests);
+      setMaintenance(maintenanceEntries);
+      setLoading(false);
+    };
+
+    void run();
+  }, [user, carId, router]);
+
+  const handleScheduleRepair = async () => {
+    if (!user || !car || !selectedMechanicId || !repairNote.trim()) return;
+    const mechanic = mechanics.find((m) => m.uid === selectedMechanicId);
+    if (!mechanic) return;
+
+    setSchedulingRepair(true);
+    try {
+      const date = preferredDate || new Date().toISOString().slice(0, 10);
+      const mechanicName = `${mechanic.firstName} ${mechanic.lastName}`.trim() || mechanic.email;
+      const ownerName =
+        `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() ||
+        user.email ||
+        "Car owner";
+      const carLabel = `${car.make} ${car.model}`.trim();
+
+      const id = await scheduleRepairForCar(user.uid, car.id, {
+        mechanicId: mechanic.uid,
+        mechanicName,
+        ownerName,
+        carLabel,
+        note: repairNote.trim(),
+        preferredDate: date,
+      });
+
+      setRepairRequests((prev) => [
+        {
+          id,
+          ownerId: user.uid,
+          carId: car.id,
+          mechanicId: mechanic.uid,
+          mechanicName,
+          ownerName,
+          carLabel,
+          note: repairNote.trim(),
+          preferredDate: date,
+          status: "scheduled",
+          createdAtMs: Date.now(),
+        },
+        ...prev,
+      ]);
+
+      setRepairNote("");
+      setPreferredDate("");
+    } finally {
+      setSchedulingRepair(false);
+    }
+  };
+
+  const handleSaveCar = async () => {
+    if (!user || !car) return;
+    setSavingCar(true);
+    try {
+      await updateCarForUser(user.uid, car.id, carForm);
+      setCar({
+        ...car,
+        ...carForm,
+      });
+      setEditingCar(false);
+    } finally {
+      setSavingCar(false);
+    }
+  };
+
+  const handleDeleteCar = async () => {
+    if (!user || !car) return;
+    const confirmed = window.confirm(
+      "Delete this vehicle and all maintenance records for it? This cannot be undone."
+    );
+    if (!confirmed) return;
+
+    setDeletingCar(true);
+    try {
+      await deleteCarForUser(user.uid, car.id);
+      router.push("/dashboard/user");
+    } finally {
+      setDeletingCar(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="h-7 w-48 animate-pulse rounded bg-muted" />
+        <Card className="h-40 animate-pulse bg-muted/40" />
+      </div>
+    );
+  }
+
+  if (!car) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Vehicle not found</CardTitle>
+          <CardDescription>
+            This vehicle does not exist or is not part of your account.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button type="button" onClick={() => router.push("/dashboard/user")}>
+            Back to dashboard
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
+            {car.make} {car.model}
+          </h1>
+          <p className="text-xs text-muted-foreground">
+            Vehicle details and repair scheduling
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => router.push("/dashboard/user")}
+        >
+          Back
+        </Button>
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="grid gap-4 md:grid-cols-2"
+      >
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle>Vehicle information</CardTitle>
+              <div className="flex gap-2">
+                {editingCar ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditingCar(false);
+                        setCarForm({
+                          make: car.make,
+                          model: car.model,
+                          mileage: car.mileage,
+                          year: car.year,
+                          fuelType: car.fuelType,
+                          drivetrain: car.drivetrain,
+                          transmission: car.transmission,
+                          vin: car.vin,
+                        });
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleSaveCar}
+                      disabled={savingCar || !carForm.make || !carForm.model}
+                    >
+                      {savingCar ? "Saving..." : "Save"}
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditingCar(true)}
+                  >
+                    Edit vehicle
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeleteCar}
+                  disabled={deletingCar}
+                  className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                >
+                  {deletingCar ? "Deleting..." : "Delete"}
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-3 text-xs">
+            <div>
+              <p className="text-muted-foreground">Make</p>
+              {editingCar ? (
+                <Input
+                  value={carForm.make}
+                  onChange={(e) =>
+                    setCarForm((prev) => ({ ...prev, make: e.target.value }))
+                  }
+                  placeholder="Make"
+                />
+              ) : (
+                <p className="font-medium">{car.make}</p>
+              )}
+            </div>
+            <div>
+              <p className="text-muted-foreground">Model</p>
+              {editingCar ? (
+                <Input
+                  value={carForm.model}
+                  onChange={(e) =>
+                    setCarForm((prev) => ({ ...prev, model: e.target.value }))
+                  }
+                  placeholder="Model"
+                />
+              ) : (
+                <p className="font-medium">{car.model}</p>
+              )}
+            </div>
+            <div>
+              <p className="text-muted-foreground">Mileage</p>
+              {editingCar ? (
+                <Input
+                  value={String(carForm.mileage)}
+                  type="number"
+                  min={0}
+                  onChange={(e) =>
+                    setCarForm((prev) => ({
+                      ...prev,
+                      mileage: Number(e.target.value) || 0,
+                    }))
+                  }
+                  placeholder="Mileage"
+                />
+              ) : (
+                <p className="font-medium">{car.mileage} km</p>
+              )}
+            </div>
+            <div>
+              <p className="text-muted-foreground">Year</p>
+              {editingCar ? (
+                <Input
+                  value={String(carForm.year)}
+                  type="number"
+                  min={1950}
+                  max={new Date().getFullYear() + 1}
+                  onChange={(e) =>
+                    setCarForm((prev) => ({
+                      ...prev,
+                      year: Number(e.target.value) || prev.year,
+                    }))
+                  }
+                  placeholder="Year"
+                />
+              ) : (
+                <p className="font-medium">{car.year}</p>
+              )}
+            </div>
+            <div>
+              <p className="text-muted-foreground">Fuel type</p>
+              {editingCar ? (
+                <Input
+                  value={carForm.fuelType}
+                  onChange={(e) =>
+                    setCarForm((prev) => ({ ...prev, fuelType: e.target.value }))
+                  }
+                  placeholder="Fuel type"
+                />
+              ) : (
+                <p className="font-medium">{car.fuelType}</p>
+              )}
+            </div>
+            <div>
+              <p className="text-muted-foreground">Drivetrain</p>
+              {editingCar ? (
+                <Input
+                  value={carForm.drivetrain}
+                  onChange={(e) =>
+                    setCarForm((prev) => ({ ...prev, drivetrain: e.target.value }))
+                  }
+                  placeholder="Drivetrain"
+                />
+              ) : (
+                <p className="font-medium uppercase">{car.drivetrain}</p>
+              )}
+            </div>
+            <div>
+              <p className="text-muted-foreground">Transmission</p>
+              {editingCar ? (
+                <Input
+                  value={carForm.transmission}
+                  onChange={(e) =>
+                    setCarForm((prev) => ({
+                      ...prev,
+                      transmission: e.target.value,
+                    }))
+                  }
+                  placeholder="Transmission"
+                />
+              ) : (
+                <p className="font-medium capitalize">{car.transmission}</p>
+              )}
+            </div>
+            <div>
+              <p className="text-muted-foreground">VIN</p>
+              {editingCar ? (
+                <Input
+                  value={carForm.vin}
+                  onChange={(e) =>
+                    setCarForm((prev) => ({ ...prev, vin: e.target.value }))
+                  }
+                  placeholder="VIN"
+                />
+              ) : (
+                <p className="font-medium">{car.vin || "-"}</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Schedule repair</CardTitle>
+            <CardDescription>
+              Choose a mechanic and leave a note about the issue.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <select
+              className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2"
+              value={selectedMechanicId}
+              onChange={(e) => setSelectedMechanicId(e.target.value)}
+            >
+              {mechanics.length === 0 ? (
+                <option value="">No mechanics available</option>
+              ) : (
+                mechanics.map((mechanic) => (
+                  <option key={mechanic.uid} value={mechanic.uid}>
+                    {`${mechanic.firstName} ${mechanic.lastName}`.trim() || mechanic.email}
+                  </option>
+                ))
+              )}
+            </select>
+            <Input
+              value={preferredDate}
+              onChange={(e) => setPreferredDate(e.target.value)}
+              placeholder="Preferred date"
+              type="date"
+            />
+            <Input
+              value={repairNote}
+              onChange={(e) => setRepairNote(e.target.value)}
+              placeholder="Describe the issue"
+            />
+            <Button
+              type="button"
+              onClick={handleScheduleRepair}
+              disabled={
+                schedulingRepair ||
+                mechanics.length === 0 ||
+                !selectedMechanicId ||
+                !repairNote.trim()
+              }
+            >
+              {schedulingRepair ? "Scheduling..." : "Schedule repair"}
+            </Button>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Scheduled repairs</CardTitle>
+          <CardDescription>
+            Repair requests for this vehicle.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {repairRequests.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+              No repair requests yet. Schedule the first one above.
+            </div>
+          ) : (
+            repairRequests.map((request) => (
+              <div
+                key={request.id}
+                className="flex items-start justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2"
+              >
+                <div>
+                  <p className="text-sm font-medium">{request.mechanicName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Preferred date: {request.preferredDate}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">{request.note}</p>
+                </div>
+                <Badge
+                  variant={
+                    request.status === "completed"
+                      ? "success"
+                      : request.status === "cancelled"
+                      ? "outline"
+                      : "warning"
+                  }
+                >
+                  {request.status.replace("_", " ")}
+                </Badge>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Maintenance history</CardTitle>
+          <CardDescription>
+            Work completed and planned by your mechanic(s).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {maintenance.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+              No maintenance records yet for this vehicle.
+            </div>
+          ) : (
+            maintenance.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-start justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2"
+              >
+                <div>
+                  <p className="text-sm font-medium">{item.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {item.serviceDate} • {item.mileage} km
+                  </p>
+                  {item.notes ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {item.notes}
+                    </p>
+                  ) : null}
+                </div>
+                <Badge variant={item.status === "completed" ? "success" : "warning"}>
+                  {item.status}
+                </Badge>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
