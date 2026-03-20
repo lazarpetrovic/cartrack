@@ -11,9 +11,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
+  getRepairScheduleForMechanicDate,
   getRepairRequestsForMechanicToday,
   updateRepairRequestStatusForMechanic,
   type RepairRequest,
@@ -25,6 +25,12 @@ export default function MechanicDashboardPage() {
   const [todayRequests, setTodayRequests] = useState<RepairRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [acceptDates, setAcceptDates] = useState<Record<string, string>>({});
+  const [selectedDate, setSelectedDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [scheduledForDate, setScheduledForDate] = useState<RepairRequest[]>([]);
+  const [scheduleLoading, setScheduleLoading] = useState(true);
 
   useEffect(() => {
     if (user && user.role === "user") {
@@ -45,6 +51,23 @@ export default function MechanicDashboardPage() {
     };
     void run();
   }, [user]);
+
+  useEffect(() => {
+    if (!user || user.role !== "mechanic") return;
+    const run = async () => {
+      setScheduleLoading(true);
+      try {
+        const requests = await getRepairScheduleForMechanicDate(
+          user.uid,
+          selectedDate
+        );
+        setScheduledForDate(requests);
+      } finally {
+        setScheduleLoading(false);
+      }
+    };
+    void run();
+  }, [user, selectedDate]);
 
   const uniqueClients = useMemo(() => {
     const map = new Map<string, { id: string; name: string; requests: number }>();
@@ -67,21 +90,55 @@ export default function MechanicDashboardPage() {
     () => todayRequests.filter((r) => r.status === "scheduled").length,
     [todayRequests]
   );
+  const actionableRequests = useMemo(
+    () => todayRequests.filter((r) => r.status === "scheduled"),
+    [todayRequests]
+  );
 
   const handleStatus = async (
     requestId: string,
     status: "accepted" | "rejected"
   ) => {
     if (!user) return;
+    const dropOffDate = acceptDates[requestId];
+    if (status === "accepted" && !dropOffDate) {
+      alert("Please choose a drop-off date before accepting.");
+      return;
+    }
     setUpdatingId(requestId);
     try {
-      await updateRepairRequestStatusForMechanic(user.uid, requestId, status);
-      setTodayRequests((prev) =>
-        prev.map((r) => (r.id === requestId ? { ...r, status } : r))
+      await updateRepairRequestStatusForMechanic(
+        user.uid,
+        requestId,
+        status,
+        status === "accepted" ? dropOffDate : undefined
       );
+      setTodayRequests((prev) =>
+        prev.map((r) =>
+          r.id === requestId
+            ? {
+                ...r,
+                status,
+                dropOffDate:
+                  status === "accepted" ? dropOffDate : r.dropOffDate,
+              }
+            : r
+        )
+      );
+      setAcceptDates((prev) => ({ ...prev, [requestId]: "" }));
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  const getStatusPillClass = (status: RepairRequest["status"]) => {
+    if (status === "accepted") {
+      return "border border-emerald-400/30 bg-emerald-500/10 text-emerald-300";
+    }
+    if (status === "rejected") {
+      return "border border-rose-400/30 bg-rose-500/10 text-rose-300";
+    }
+    return "border border-slate-500/30 bg-slate-500/10 text-slate-300";
   };
 
   return (
@@ -130,102 +187,171 @@ export default function MechanicDashboardPage() {
         </motion.div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <motion.section
-          className="space-y-3"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <Card>
-            <CardHeader>
+      <motion.section
+        className="space-y-3"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <CardTitle>Service requests</CardTitle>
-                <CardDescription>New and in-progress work</CardDescription>
+                <CardTitle>Schedule by date</CardTitle>
+                <CardDescription>
+                  Cars expected for drop-off on the selected date.
+                </CardDescription>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-hidden rounded-lg border border-border/60 bg-background/40">
-                <table className="min-w-full text-left text-xs">
-                  <thead className="bg-muted/60 text-[11px] uppercase text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2">Client</th>
-                      <th className="px-3 py-2">Car</th>
-                      <th className="px-3 py-2">Issue</th>
-                      <th className="px-3 py-2">Status</th>
-                      <th className="px-3 py-2 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
-                      <tr className="border-t border-border/40 text-[11px] text-muted-foreground">
-                        <td className="px-3 py-4" colSpan={5}>
-                          Loading today&apos;s requests...
-                        </td>
-                      </tr>
-                    ) : todayRequests.length === 0 ? (
-                      <tr className="border-t border-border/40 text-[11px] text-muted-foreground">
-                        <td className="px-3 py-4" colSpan={5}>
-                          No repair requests were sent today.
-                        </td>
-                      </tr>
-                    ) : (
-                    todayRequests.map((req) => (
-                      <tr
-                        key={req.id}
-                        className="border-t border-border/40 text-[11px] text-foreground/90"
-                      >
-                        <td className="px-3 py-2">{req.ownerName || "Car owner"}</td>
-                        <td className="px-3 py-2">{req.carLabel || "Vehicle"}</td>
-                        <td className="px-3 py-2 text-muted-foreground">
-                          {req.note}
-                        </td>
-                        <td className="px-3 py-2">
-                          <Badge
-                            variant={
-                              req.status === "accepted"
-                                ? "success"
-                                : req.status === "rejected"
-                                ? "outline"
-                                : "warning"
-                            }
-                          >
-                            {req.status}
-                          </Badge>
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          <div className="flex justify-end gap-1.5">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="subtle"
-                              className="h-7 px-2 text-[11px]"
-                              onClick={() => handleStatus(req.id, "rejected")}
-                              disabled={updatingId === req.id || req.status !== "scheduled"}
-                            >
-                              {updatingId === req.id ? "Updating..." : "Reject date"}
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="h-7 px-2 text-[11px]"
-                              onClick={() => handleStatus(req.id, "accepted")}
-                              disabled={updatingId === req.id || req.status !== "scheduled"}
-                            >
-                              {updatingId === req.id ? "Updating..." : "Accept date"}
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                    )}
-                  </tbody>
-                </table>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2"
+              />
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {scheduleLoading ? (
+              <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-4 text-sm text-muted-foreground">
+                Loading scheduled cars...
               </div>
-            </CardContent>
-          </Card>
-        </motion.section>
+            ) : scheduledForDate.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-4 text-sm text-muted-foreground">
+                No cars are scheduled for this date.
+              </div>
+            ) : (
+              scheduledForDate.map((request) => (
+                <div
+                  key={request.id}
+                  className="flex items-start justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      {request.carLabel || "Vehicle"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Client: {request.ownerName || "Car owner"}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">{request.note}</p>
+                  </div>
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-1 text-[0.72rem] font-medium capitalize ${getStatusPillClass(
+                      request.status
+                    )}`}
+                  >
+                    {request.status}
+                  </span>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </motion.section>
 
-        <motion.section
+      <div className="flex flex-col">
+        {(loading || actionableRequests.length > 0) && (
+          <motion.section
+            className="space-y-3"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <Card>
+              <CardHeader>
+                <div>
+                  <CardTitle>Service requests</CardTitle>
+                  <CardDescription>New and in-progress work</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-hidden rounded-lg border border-border/60 bg-background/40">
+                  <table className="min-w-full text-left text-xs">
+                    <thead className="bg-muted/60 text-sm uppercase text-muted-foreground">
+                      <tr>
+                        <th className="px-3 py-2">Client</th>
+                        <th className="px-3 py-2">Car</th>
+                        <th className="px-3 py-2">Issue</th>
+                        <th className="px-3 py-2">Status</th>
+                        <th className="px-3 py-2">Drop-off date</th>
+                        <th className="px-3 py-2 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loading ? (
+                        <tr className="border-t border-border/40 text-sm text-muted-foreground">
+                          <td className="px-3 py-4" colSpan={6}>
+                            Loading today&apos;s requests...
+                          </td>
+                        </tr>
+                      ) : (
+                        actionableRequests.map((req) => (
+                          <tr
+                            key={req.id}
+                            className="border-t border-border/40 text-sm text-foreground/90"
+                          >
+                            <td className="px-3 py-2">{req.ownerName || "Car owner"}</td>
+                            <td className="px-3 py-2">{req.carLabel || "Vehicle"}</td>
+                            <td className="px-3 py-2 text-muted-foreground">
+                              {req.note}
+                            </td>
+                            <td className="px-3 py-2">
+                              <span
+                                className={`inline-flex rounded-full px-2.5 py-1 text-[0.72rem] font-medium capitalize ${getStatusPillClass(
+                                  req.status
+                                )}`}
+                              >
+                                {req.status}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-muted-foreground">
+                              {req.status === "accepted" && req.dropOffDate ? (
+                                req.dropOffDate
+                              ) : req.status === "scheduled" ? (
+                                <input
+                                  type="date"
+                                  value={acceptDates[req.id] ?? ""}
+                                  onChange={(e) =>
+                                    setAcceptDates((prev) => ({
+                                      ...prev,
+                                      [req.id]: e.target.value,
+                                    }))
+                                  }
+                                  className="h-7 rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2"
+                                />
+                              ) : (
+                                "-"
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <div className="flex justify-end gap-1.5">
+                                <Button
+                                  type="button"
+                                  className="py-4 px-2.5 text-md bg-gray-500"
+                                  onClick={() => handleStatus(req.id, "rejected")}
+                                  disabled={updatingId === req.id || req.status !== "scheduled"}
+                                >
+                                  {updatingId === req.id ? "Updating..." : "Reject date"}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  className="py-4 px-2.5 text-md"
+                                  onClick={() => handleStatus(req.id, "accepted")}
+                                  disabled={updatingId === req.id || req.status !== "scheduled"}
+                                >
+                                  {updatingId === req.id ? "Updating..." : "Accept date"}
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.section>
+        )}
+
+        {/*}<motion.section
           className="space-y-3"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -260,13 +386,16 @@ export default function MechanicDashboardPage() {
                       {client.requests !== 1 ? "s" : ""} today
                     </p>
                   </div>
-                  <Badge variant="outline">Today</Badge>
+                  <span className="inline-flex rounded-full border border-slate-500/30 bg-slate-500/10 px-2.5 py-1 text-[0.72rem] font-medium text-slate-300">
+                    Today
+                  </span>
                 </motion.div>
               ))
               )}
             </CardContent>
           </Card>
         </motion.section>
+        */}
       </div>
     </div>
   );

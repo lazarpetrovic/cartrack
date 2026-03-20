@@ -50,7 +50,7 @@ export interface RepairRequest {
   ownerName: string;
   carLabel: string;
   note: string;
-  preferredDate: string;
+  dropOffDate?: string;
   status:
     | "scheduled"
     | "accepted"
@@ -203,13 +203,13 @@ export async function getRepairRequestsForCar(
       ownerName: data.ownerName ?? "",
       carLabel: data.carLabel ?? "",
       note: data.note ?? "",
-      preferredDate: data.preferredDate,
+      dropOffDate: data.dropOffDate,
       status: data.status ?? "scheduled",
       createdAtMs: data.createdAt?.toMillis?.() ?? 0,
     });
   });
 
-  requests.sort((a, b) => (a.preferredDate < b.preferredDate ? 1 : -1));
+  requests.sort((a, b) => b.createdAtMs - a.createdAtMs);
   return requests;
 }
 
@@ -245,7 +245,7 @@ export async function getRepairRequestsForMechanicToday(
       ownerName: data.ownerName ?? "",
       carLabel: data.carLabel ?? "",
       note: data.note ?? "",
-      preferredDate: data.preferredDate,
+      dropOffDate: data.dropOffDate,
       status: data.status ?? "scheduled",
       createdAtMs,
     });
@@ -255,10 +255,45 @@ export async function getRepairRequestsForMechanicToday(
   return requests;
 }
 
+export async function getRepairScheduleForMechanicDate(
+  mechanicId: string,
+  date: string
+): Promise<RepairRequest[]> {
+  const q = query(
+    collection(db, REPAIR_REQUESTS_COLLECTION),
+    where("mechanicId", "==", mechanicId),
+    where("dropOffDate", "==", date)
+  );
+  const snapshot = await getDocs(q);
+  const requests: RepairRequest[] = [];
+
+  snapshot.forEach((docSnap) => {
+    const data = docSnap.data() as DocumentData;
+    requests.push({
+      id: docSnap.id,
+      ownerId: data.ownerId,
+      carId: data.carId,
+      mechanicId: data.mechanicId,
+      mechanicName: data.mechanicName,
+      ownerName: data.ownerName ?? "",
+      carLabel: data.carLabel ?? "",
+      note: data.note ?? "",
+      dropOffDate: data.dropOffDate,
+      status: data.status ?? "scheduled",
+      createdAtMs: data.createdAt?.toMillis?.() ?? 0,
+    });
+  });
+
+  return requests.filter(
+    (request) => request.status === "accepted" || request.status === "in_progress"
+  );
+}
+
 export async function updateRepairRequestStatusForMechanic(
   mechanicId: string,
   requestId: string,
-  status: "accepted" | "rejected"
+  status: "accepted" | "rejected",
+  dropOffDate?: string
 ): Promise<void> {
   const requestRef = doc(db, REPAIR_REQUESTS_COLLECTION, requestId);
   const snapshot = await getDoc(requestRef);
@@ -271,7 +306,16 @@ export async function updateRepairRequestStatusForMechanic(
     throw new Error("Not allowed to update this request.");
   }
 
-  await updateDoc(requestRef, { status });
+  if (status === "accepted" && !dropOffDate) {
+    throw new Error("Drop-off date is required when accepting.");
+  }
+
+  const payload: { status: string; dropOffDate?: string } = { status };
+  if (status === "accepted" && dropOffDate) {
+    payload.dropOffDate = dropOffDate;
+  }
+
+  await updateDoc(requestRef, payload);
 }
 
 export async function updateCarForUser(
