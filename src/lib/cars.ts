@@ -5,6 +5,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   serverTimestamp,
   updateDoc,
@@ -39,6 +40,9 @@ export interface MaintenanceEntry {
   serviceDate: string;
   mileage: number;
   notes: string;
+  partsPrice?: number;
+  laborPrice?: number;
+  totalPrice?: number;
 }
 
 export interface RepairRequest {
@@ -49,6 +53,7 @@ export interface RepairRequest {
   mechanicName: string;
   ownerName: string;
   carLabel: string;
+  carMileage?: number;
   note: string;
   dropOffDate?: string;
   status:
@@ -144,6 +149,9 @@ export async function getMaintenanceForCar(
       serviceDate: data.serviceDate,
       mileage: data.mileage,
       notes: data.notes ?? "",
+      partsPrice: data.partsPrice,
+      laborPrice: data.laborPrice,
+      totalPrice: data.totalPrice,
     });
   });
 
@@ -151,14 +159,50 @@ export async function getMaintenanceForCar(
   return entries;
 }
 
+export function subscribeMaintenanceForCar(
+  ownerId: string,
+  carId: string,
+  onData: (entries: MaintenanceEntry[]) => void
+): () => void {
+  const q = query(
+    collection(db, MAINTENANCE_COLLECTION),
+    where("ownerId", "==", ownerId),
+    where("carId", "==", carId)
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const entries: MaintenanceEntry[] = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data() as DocumentData;
+      entries.push({
+        id: docSnap.id,
+        ownerId: data.ownerId,
+        carId: data.carId,
+        title: data.title,
+        status: data.status,
+        serviceDate: data.serviceDate,
+        mileage: data.mileage,
+        notes: data.notes ?? "",
+        partsPrice: data.partsPrice,
+        laborPrice: data.laborPrice,
+        totalPrice: data.totalPrice,
+      });
+    });
+    entries.sort((a, b) => (a.serviceDate < b.serviceDate ? 1 : -1));
+    onData(entries);
+  });
+}
+
 export async function addMaintenanceForCar(
   ownerId: string,
   carId: string,
+  mechanicId: string,
   data: Omit<MaintenanceEntry, "id" | "ownerId" | "carId">
 ): Promise<string> {
   const ref = await addDoc(collection(db, MAINTENANCE_COLLECTION), {
     ownerId,
     carId,
+    mechanicId,
     ...data,
     createdAt: serverTimestamp(),
   });
@@ -202,6 +246,7 @@ export async function getRepairRequestsForCar(
       mechanicName: data.mechanicName,
       ownerName: data.ownerName ?? "",
       carLabel: data.carLabel ?? "",
+      carMileage: data.carMileage,
       note: data.note ?? "",
       dropOffDate: data.dropOffDate,
       status: data.status ?? "scheduled",
@@ -244,6 +289,7 @@ export async function getRepairRequestsForMechanicToday(
       mechanicName: data.mechanicName,
       ownerName: data.ownerName ?? "",
       carLabel: data.carLabel ?? "",
+      carMileage: data.carMileage,
       note: data.note ?? "",
       dropOffDate: data.dropOffDate,
       status: data.status ?? "scheduled",
@@ -277,6 +323,7 @@ export async function getRepairScheduleForMechanicDate(
       mechanicName: data.mechanicName,
       ownerName: data.ownerName ?? "",
       carLabel: data.carLabel ?? "",
+      carMileage: data.carMileage,
       note: data.note ?? "",
       dropOffDate: data.dropOffDate,
       status: data.status ?? "scheduled",

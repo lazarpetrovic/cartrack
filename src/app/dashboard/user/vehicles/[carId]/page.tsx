@@ -12,6 +12,7 @@ import {
   getMaintenanceForCar,
   getRepairRequestsForCar,
   scheduleRepairForCar,
+  subscribeMaintenanceForCar,
   updateCarForUser,
   type Car,
   type MaintenanceEntry,
@@ -114,6 +115,14 @@ export default function VehicleDetailsPage() {
     void run();
   }, [user, carId, router]);
 
+  useEffect(() => {
+    if (!user || !carId) return;
+    const unsubscribe = subscribeMaintenanceForCar(user.uid, carId, (entries) => {
+      setMaintenance(entries);
+    });
+    return () => unsubscribe();
+  }, [user, carId]);
+
   const handleScheduleRepair = async () => {
     if (!user || !car || !selectedMechanicId || !repairNote.trim()) return;
     const mechanic = mechanics.find((m) => m.uid === selectedMechanicId);
@@ -127,12 +136,14 @@ export default function VehicleDetailsPage() {
         user.email ||
         "Car owner";
       const carLabel = `${car.make} ${car.model}`.trim();
+      const carMileage = car.mileage;
 
       const id = await scheduleRepairForCar(user.uid, car.id, {
         mechanicId: mechanic.uid,
         mechanicName,
         ownerName,
         carLabel,
+        carMileage,
         note: repairNote.trim(),
       });
 
@@ -145,6 +156,7 @@ export default function VehicleDetailsPage() {
           mechanicName,
           ownerName,
           carLabel,
+          carMileage,
           note: repairNote.trim(),
           status: "scheduled",
           createdAtMs: Date.now(),
