@@ -12,6 +12,7 @@ import {
   getMaintenanceForCar,
   getRepairRequestsForCar,
   scheduleRepairForCar,
+  subscribeMaintenanceForCar,
   updateCarForUser,
   type Car,
   type MaintenanceEntry,
@@ -26,7 +27,6 @@ import {
 } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { Badge } from "@/src/components/ui/badge";
 
 export default function VehicleDetailsPage() {
   const { user } = useAuth();
@@ -56,7 +56,16 @@ export default function VehicleDetailsPage() {
 
   const [selectedMechanicId, setSelectedMechanicId] = useState("");
   const [repairNote, setRepairNote] = useState("");
-  const [preferredDate, setPreferredDate] = useState("");
+
+  const getRequestStatusPillClass = (status: RepairRequest["status"]) => {
+    if (status === "accepted") {
+      return "border border-emerald-400/30 bg-emerald-500/10 text-emerald-300";
+    }
+    if (status === "rejected") {
+      return "border border-rose-400/30 bg-rose-500/10 text-rose-300";
+    }
+    return "border border-slate-500/30 bg-slate-500/10 text-slate-300";
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -106,6 +115,14 @@ export default function VehicleDetailsPage() {
     void run();
   }, [user, carId, router]);
 
+  useEffect(() => {
+    if (!user || !carId) return;
+    const unsubscribe = subscribeMaintenanceForCar(user.uid, carId, (entries) => {
+      setMaintenance(entries);
+    });
+    return () => unsubscribe();
+  }, [user, carId]);
+
   const handleScheduleRepair = async () => {
     if (!user || !car || !selectedMechanicId || !repairNote.trim()) return;
     const mechanic = mechanics.find((m) => m.uid === selectedMechanicId);
@@ -113,21 +130,21 @@ export default function VehicleDetailsPage() {
 
     setSchedulingRepair(true);
     try {
-      const date = preferredDate || new Date().toISOString().slice(0, 10);
       const mechanicName = `${mechanic.firstName} ${mechanic.lastName}`.trim() || mechanic.email;
       const ownerName =
         `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() ||
         user.email ||
         "Car owner";
       const carLabel = `${car.make} ${car.model}`.trim();
+      const carMileage = car.mileage;
 
       const id = await scheduleRepairForCar(user.uid, car.id, {
         mechanicId: mechanic.uid,
         mechanicName,
         ownerName,
         carLabel,
+        carMileage,
         note: repairNote.trim(),
-        preferredDate: date,
       });
 
       setRepairRequests((prev) => [
@@ -139,8 +156,8 @@ export default function VehicleDetailsPage() {
           mechanicName,
           ownerName,
           carLabel,
+          carMileage,
           note: repairNote.trim(),
-          preferredDate: date,
           status: "scheduled",
           createdAtMs: Date.now(),
         },
@@ -148,7 +165,6 @@ export default function VehicleDetailsPage() {
       ]);
 
       setRepairNote("");
-      setPreferredDate("");
     } finally {
       setSchedulingRepair(false);
     }
@@ -450,12 +466,6 @@ export default function VehicleDetailsPage() {
               )}
             </select>
             <Input
-              value={preferredDate}
-              onChange={(e) => setPreferredDate(e.target.value)}
-              placeholder="Preferred date"
-              type="date"
-            />
-            <Input
               value={repairNote}
               onChange={(e) => setRepairNote(e.target.value)}
               placeholder="Describe the issue"
@@ -497,21 +507,19 @@ export default function VehicleDetailsPage() {
                 <div>
                   <p className="text-sm font-medium">{request.mechanicName}</p>
                   <p className="text-xs text-muted-foreground">
-                    Preferred date: {request.preferredDate}
+                    {request.dropOffDate
+                      ? `Drop-off date: ${request.dropOffDate}`
+                      : "Drop-off date: awaiting mechanic confirmation"}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">{request.note}</p>
                 </div>
-                <Badge
-                  variant={
-                    request.status === "completed"
-                      ? "success"
-                      : request.status === "cancelled"
-                      ? "outline"
-                      : "warning"
-                  }
+                <span
+                  className={`inline-flex rounded-full px-2.5 py-1 text-[0.72rem] font-medium capitalize ${getRequestStatusPillClass(
+                    request.status
+                  )}`}
                 >
                   {request.status.replace("_", " ")}
-                </Badge>
+                </span>
               </div>
             ))
           )}
@@ -547,9 +555,15 @@ export default function VehicleDetailsPage() {
                     </p>
                   ) : null}
                 </div>
-                <Badge variant={item.status === "completed" ? "success" : "warning"}>
+                <span
+                  className={`inline-flex rounded-full px-2.5 py-1 text-[0.72rem] font-medium capitalize ${
+                    item.status === "completed"
+                      ? "border border-emerald-400/30 bg-emerald-500/10 text-emerald-300"
+                      : "border border-slate-500/30 bg-slate-500/10 text-slate-300"
+                  }`}
+                >
                   {item.status}
-                </Badge>
+                </span>
               </div>
             ))
           )}
