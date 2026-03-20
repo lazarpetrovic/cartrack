@@ -245,9 +245,10 @@ export default function UserDashboardPage() {
               {cars.map((car) => (
                 <motion.div
                   key={car.id}
-                  className="flex items-center justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2 text-xs"
+                  className="flex cursor-pointer items-center justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2 text-xs"
                   whileHover={{ y: -1 }}
                   transition={{ duration: 0.12 }}
+                  onClick={() => router.push(`/dashboard/user/vehicles/${car.id}`)}
                 >
                   <div>
                     <p className="font-medium text-foreground">
