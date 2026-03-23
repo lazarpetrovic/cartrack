@@ -103,11 +103,6 @@ export default function VehicleDetailsPage() {
     () => repairRequests.filter((request) => request.status === "ready_for_pickup"),
     [repairRequests]
   );
-  const finishedRequests = useMemo(
-    () => repairRequests.filter((request) => request.status === "completed"),
-    [repairRequests]
-  );
-
   useEffect(() => {
     if (!user) return;
     if (user.role === "mechanic") {
@@ -625,14 +620,14 @@ export default function VehicleDetailsPage() {
 
               <div className="space-y-2">
                 <p className="text-sm font-semibold text-foreground">
-                  Ready for pickup / finished
+                  Ready for pickup
                 </p>
-                {pickupRequests.length === 0 && finishedRequests.length === 0 ? (
+                {pickupRequests.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-3 text-xs text-muted-foreground">
-                    No finished requests yet.
+                    No cars are waiting for pickup.
                   </div>
                 ) : (
-                  [...pickupRequests, ...finishedRequests].map((request) => (
+                  pickupRequests.map((request) => (
                     <div
                       key={request.id}
                       className="rounded-lg border border-sky-400/25 bg-sky-500/5 px-3 py-2"
@@ -664,9 +659,7 @@ export default function VehicleDetailsPage() {
                         </div>
                       </div>
                       <p className="mt-1 text-xs text-sky-100/90">
-                        {request.status === "ready_for_pickup"
-                          ? "Your car is ready for pickup."
-                          : "Service completed."}
+                        Your car is ready for pickup.
                       </p>
                     </div>
                   ))

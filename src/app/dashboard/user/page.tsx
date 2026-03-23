@@ -18,11 +18,9 @@ import { Input } from "@/src/components/ui/input";
 import {
   addCarForUser,
   getCarsForUser,
-  getMaintenanceForOwner,
   markRepairCompletedForOwner,
   getRepairRequestsForOwner,
   type Car,
-  type MaintenanceEntry,
   type RepairRequest,
 } from "@/src/lib/cars";
 
@@ -30,7 +28,6 @@ export default function UserDashboardPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [cars, setCars] = useState<Car[]>([]);
-  const [serviceHistory, setServiceHistory] = useState<MaintenanceEntry[]>([]);
   const [repairRequests, setRepairRequests] = useState<RepairRequest[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [make, setMake] = useState("");
@@ -53,13 +50,11 @@ export default function UserDashboardPage() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const [carResult, historyResult, requestResult] = await Promise.all([
+      const [carResult, requestResult] = await Promise.all([
         getCarsForUser(user.uid),
-        getMaintenanceForOwner(user.uid),
         getRepairRequestsForOwner(user.uid),
       ]);
       setCars(carResult);
-      setServiceHistory(historyResult);
       setRepairRequests(requestResult);
     })();
   }, [user]);
@@ -417,62 +412,6 @@ export default function UserDashboardPage() {
           </Card>
         </motion.section>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Maintenance history</CardTitle>
-          <CardDescription>Completed work across all your vehicles.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-hidden rounded-lg border border-border/60 bg-background/40">
-            <table className="min-w-full text-left text-xs">
-              <thead className="bg-muted/60 text-[11px] uppercase text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2">Car</th>
-                  <th className="px-3 py-2">Service</th>
-                  <th className="px-3 py-2">Date</th>
-                  <th className="px-3 py-2 text-right">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {serviceHistory.length === 0 ? (
-                  <tr className="border-t border-border/40 text-[11px] text-muted-foreground">
-                    <td className="px-3 py-3" colSpan={4}>
-                      No maintenance entries yet.
-                    </td>
-                  </tr>
-                ) : (
-                  serviceHistory.map((item) => {
-                    const car = cars.find((c) => c.id === item.carId);
-                    const carLabel = car ? `${car.make} ${car.model}` : "Vehicle";
-                    return (
-                      <tr
-                        key={item.id}
-                        className="border-t border-border/40 text-[11px] text-foreground/90"
-                      >
-                        <td className="px-3 py-2">{carLabel}</td>
-                        <td className="px-3 py-2">{item.title}</td>
-                        <td className="px-3 py-2 text-muted-foreground">
-                          {item.serviceDate}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          <Badge
-                            variant={
-                              item.status === "completed" ? "success" : "warning"
-                            }
-                          >
-                            {item.status}
-                          </Badge>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
 
       <Modal
         open={addOpen}

@@ -35,6 +35,7 @@ export interface MaintenanceEntry {
   id: string;
   ownerId: string;
   carId: string;
+  mechanicId?: string;
   title: string;
   status: "pending" | "completed";
   serviceDate: string;
@@ -195,6 +196,39 @@ export async function getMaintenanceForOwner(
       id: docSnap.id,
       ownerId: data.ownerId,
       carId: data.carId,
+      title: data.title,
+      status: data.status,
+      serviceDate: data.serviceDate,
+      mileage: data.mileage,
+      notes: data.notes ?? "",
+      partsPrice: data.partsPrice,
+      laborPrice: data.laborPrice,
+      totalPrice: data.totalPrice,
+    });
+  });
+
+  entries.sort((a, b) => (a.serviceDate < b.serviceDate ? 1 : -1));
+  return entries;
+}
+
+export async function getMaintenanceForMechanicDate(
+  mechanicId: string,
+  serviceDate: string
+): Promise<MaintenanceEntry[]> {
+  const q = query(
+    collection(db, MAINTENANCE_COLLECTION),
+    where("mechanicId", "==", mechanicId),
+    where("serviceDate", "==", serviceDate)
+  );
+  const snapshot = await getDocs(q);
+  const entries: MaintenanceEntry[] = [];
+  snapshot.forEach((docSnap) => {
+    const data = docSnap.data() as DocumentData;
+    entries.push({
+      id: docSnap.id,
+      ownerId: data.ownerId,
+      carId: data.carId,
+      mechanicId: data.mechanicId,
       title: data.title,
       status: data.status,
       serviceDate: data.serviceDate,
@@ -377,6 +411,38 @@ export async function getRepairRequestsForMechanicToday(
       dropOffDate: data.dropOffDate,
       status: data.status ?? "scheduled",
       createdAtMs,
+    });
+  });
+
+  requests.sort((a, b) => b.createdAtMs - a.createdAtMs);
+  return requests;
+}
+
+export async function getRepairRequestsForMechanic(
+  mechanicId: string
+): Promise<RepairRequest[]> {
+  const q = query(
+    collection(db, REPAIR_REQUESTS_COLLECTION),
+    where("mechanicId", "==", mechanicId)
+  );
+  const snapshot = await getDocs(q);
+  const requests: RepairRequest[] = [];
+
+  snapshot.forEach((docSnap) => {
+    const data = docSnap.data() as DocumentData;
+    requests.push({
+      id: docSnap.id,
+      ownerId: data.ownerId,
+      carId: data.carId,
+      mechanicId: data.mechanicId,
+      mechanicName: data.mechanicName,
+      ownerName: data.ownerName ?? "",
+      carLabel: data.carLabel ?? "",
+      carMileage: data.carMileage,
+      note: data.note ?? "",
+      dropOffDate: data.dropOffDate,
+      status: data.status ?? "scheduled",
+      createdAtMs: data.createdAt?.toMillis?.() ?? 0,
     });
   });
 

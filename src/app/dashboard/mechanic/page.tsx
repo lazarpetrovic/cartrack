@@ -24,14 +24,12 @@ export default function MechanicDashboardPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [todayRequests, setTodayRequests] = useState<RepairRequest[]>([]);
+  const [todayVehicles, setTodayVehicles] = useState<RepairRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [vehiclesLoading, setVehiclesLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [acceptDates, setAcceptDates] = useState<Record<string, string>>({});
-  const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().slice(0, 10)
-  );
-  const [scheduledForDate, setScheduledForDate] = useState<RepairRequest[]>([]);
-  const [scheduleLoading, setScheduleLoading] = useState(true);
+  const todayDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   useEffect(() => {
     if (user && user.role === "user") {
@@ -56,36 +54,16 @@ export default function MechanicDashboardPage() {
   useEffect(() => {
     if (!user || user.role !== "mechanic") return;
     const run = async () => {
-      setScheduleLoading(true);
+      setVehiclesLoading(true);
       try {
-        const requests = await getRepairScheduleForMechanicDate(
-          user.uid,
-          selectedDate
-        );
-        setScheduledForDate(requests);
+        const requests = await getRepairScheduleForMechanicDate(user.uid, todayDate);
+        setTodayVehicles(requests);
       } finally {
-        setScheduleLoading(false);
+        setVehiclesLoading(false);
       }
     };
     void run();
-  }, [user, selectedDate]);
-
-  const uniqueClients = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; requests: number }>();
-    for (const req of todayRequests) {
-      const existing = map.get(req.ownerId);
-      if (existing) {
-        existing.requests += 1;
-      } else {
-        map.set(req.ownerId, {
-          id: req.ownerId,
-          name: req.ownerName || "Car owner",
-          requests: 1,
-        });
-      }
-    }
-    return Array.from(map.values());
-  }, [todayRequests]);
+  }, [user, todayDate]);
 
   const pendingCount = useMemo(
     () => todayRequests.filter((r) => r.status === "scheduled").length,
@@ -95,31 +73,9 @@ export default function MechanicDashboardPage() {
     () => todayRequests.filter((r) => r.status === "scheduled"),
     [todayRequests]
   );
-  const acceptedRequests = useMemo(
-    () => todayRequests.filter((r) => r.status === "accepted"),
-    [todayRequests]
-  );
-  const rejectedRequests = useMemo(
-    () => todayRequests.filter((r) => r.status === "rejected"),
-    [todayRequests]
-  );
-  const finishedRequests = useMemo(
-    () =>
-      todayRequests.filter(
-        (r) => r.status === "ready_for_pickup" || r.status === "completed"
-      ),
-    [todayRequests]
-  );
-  const inServiceCars = useMemo(
-    () =>
-      scheduledForDate.filter(
-        (r) => r.status === "accepted" || r.status === "in_progress"
-      ),
-    [scheduledForDate]
-  );
-  const pickupCars = useMemo(
-    () => scheduledForDate.filter((r) => r.status === "ready_for_pickup"),
-    [scheduledForDate]
+  const readyForPickupCount = useMemo(
+    () => todayVehicles.filter((r) => r.status === "ready_for_pickup").length,
+    [todayVehicles]
   );
 
   const handleStatus = async (
@@ -141,6 +97,18 @@ export default function MechanicDashboardPage() {
         status === "accepted" ? dropOffDate : undefined
       );
       setTodayRequests((prev) =>
+        prev.map((r) =>
+          r.id === requestId
+            ? {
+                ...r,
+                status,
+                dropOffDate:
+                  status === "accepted" ? dropOffDate : r.dropOffDate,
+              }
+            : r
+        )
+      );
+      setTodayVehicles((prev) =>
         prev.map((r) =>
           r.id === requestId
             ? {
@@ -178,7 +146,7 @@ export default function MechanicDashboardPage() {
       setTodayRequests((prev) =>
         prev.map((r) => (r.id === request.id ? { ...r, status: "in_progress" } : r))
       );
-      setScheduledForDate((prev) =>
+      setTodayVehicles((prev) =>
         prev.map((r) => (r.id === request.id ? { ...r, status: "in_progress" } : r))
       );
     }
@@ -200,8 +168,8 @@ export default function MechanicDashboardPage() {
         <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.15 }}>
           <Card>
             <CardHeader>
-              <CardTitle>Open requests</CardTitle>
-              <CardDescription>Needing attention</CardDescription>
+              <CardTitle>New requests today</CardTitle>
+              <CardDescription>Waiting for your decision</CardDescription>
             </CardHeader>
             <CardContent className="text-2xl font-semibold">
               {pendingCount}
@@ -211,21 +179,22 @@ export default function MechanicDashboardPage() {
         <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.15 }}>
           <Card>
             <CardHeader>
-              <CardTitle>Active clients</CardTitle>
+              <CardTitle>Vehicles for today</CardTitle>
+              <CardDescription>Drop-off list for {todayDate}</CardDescription>
             </CardHeader>
             <CardContent className="text-2xl font-semibold">
-              {uniqueClients.length}
+              {todayVehicles.length}
             </CardContent>
           </Card>
         </motion.div>
         <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.15 }}>
           <Card>
             <CardHeader>
-              <CardTitle>Today&apos;s schedule</CardTitle>
-              <CardDescription>Requests sent today</CardDescription>
+              <CardTitle>Ready for pickup</CardTitle>
+              <CardDescription>Finished and waiting owner</CardDescription>
             </CardHeader>
             <CardContent className="text-2xl font-semibold">
-              {todayRequests.length}
+              {readyForPickupCount}
             </CardContent>
           </Card>
         </motion.div>
@@ -238,111 +207,59 @@ export default function MechanicDashboardPage() {
       >
         <Card>
           <CardHeader>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <CardTitle>Schedule by date</CardTitle>
-                <CardDescription>
-                  Cars expected for drop-off on the selected date.
-                </CardDescription>
-              </div>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2"
-              />
+            <div>
+              <CardTitle>Today&apos;s vehicles for repair</CardTitle>
+              <CardDescription>
+                Work planned for today, including active services and finished pickups.
+              </CardDescription>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {scheduleLoading ? (
+          <CardContent className="space-y-2">
+            {vehiclesLoading ? (
               <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-4 text-sm text-muted-foreground">
-                Loading scheduled cars...
+                Loading today&apos;s vehicles...
               </div>
-            ) : scheduledForDate.length === 0 ? (
+            ) : todayVehicles.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-4 text-sm text-muted-foreground">
-                No cars are scheduled for this date.
+                No vehicles scheduled for today.
               </div>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold text-foreground">In service now</p>
-                  {inServiceCars.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-3 text-xs text-muted-foreground">
-                      No cars currently in service.
-                    </div>
-                  ) : (
-                    inServiceCars.map((request) => (
-                      <div
-                        key={request.id}
-                        className="flex items-start justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2"
+              todayVehicles.map((request) => (
+                <div
+                  key={request.id}
+                  className="flex items-start justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      {request.carLabel || "Vehicle"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Client: {request.ownerName || "Car owner"}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">{request.note}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {(request.status === "accepted" || request.status === "in_progress") && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-[11px]"
+                        onClick={() => void handleStartService(request)}
                       >
-                        <div>
-                          <p className="text-sm font-medium text-foreground">
-                            {request.carLabel || "Vehicle"}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Client: {request.ownerName || "Car owner"}
-                          </p>
-                          <p className="mt-1 text-xs text-muted-foreground">{request.note}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-2 text-[11px]"
-                            onClick={() => void handleStartService(request)}
-                          >
-                            Start service
-                          </Button>
-                          <span
-                            className={`inline-flex rounded-full px-2.5 py-1 text-[0.72rem] font-medium capitalize ${getStatusPillClass(
-                              request.status
-                            )}`}
-                          >
-                            {request.status}
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  )}
+                        Start service
+                      </Button>
+                    )}
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-[0.72rem] font-medium capitalize ${getStatusPillClass(
+                        request.status
+                      )}`}
+                    >
+                      {request.status}
+                    </span>
+                  </div>
                 </div>
-
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold text-foreground">
-                    Finished - ready for pickup
-                  </p>
-                  {pickupCars.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-3 text-xs text-muted-foreground">
-                      No cars are waiting for pickup.
-                    </div>
-                  ) : (
-                    pickupCars.map((request) => (
-                      <div
-                        key={request.id}
-                        className="flex items-start justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2"
-                      >
-                        <div>
-                          <p className="text-sm font-medium text-foreground">
-                            {request.carLabel || "Vehicle"}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Client: {request.ownerName || "Car owner"}
-                          </p>
-                          <p className="mt-1 text-xs text-muted-foreground">{request.note}</p>
-                        </div>
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-[0.72rem] font-medium capitalize ${getStatusPillClass(
-                            request.status
-                          )}`}
-                        >
-                          {request.status}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
+              ))
             )}
           </CardContent>
         </Card>
@@ -358,8 +275,8 @@ export default function MechanicDashboardPage() {
             <Card>
               <CardHeader>
                 <div>
-                  <CardTitle>Scheduled requests</CardTitle>
-                  <CardDescription>New requests waiting for your decision</CardDescription>
+                  <CardTitle>Requests sent today</CardTitle>
+                  <CardDescription>Incoming requests created today</CardDescription>
                 </div>
               </CardHeader>
               <CardContent>
@@ -452,147 +369,6 @@ export default function MechanicDashboardPage() {
           </motion.section>
         )}
 
-        <motion.section
-          className="space-y-3"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <Card>
-            <CardHeader>
-              <CardTitle>Request status lists</CardTitle>
-              <CardDescription>
-                Scheduled repair requests split by outcome.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-foreground">Accepted</p>
-                {acceptedRequests.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-3 text-xs text-muted-foreground">
-                    No accepted requests.
-                  </div>
-                ) : (
-                  acceptedRequests.map((req) => (
-                    <div
-                      key={req.id}
-                      className="rounded-lg border border-border/60 bg-background/40 px-3 py-2"
-                    >
-                      <p className="text-sm font-medium text-foreground">
-                        {req.carLabel || "Vehicle"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {req.ownerName || "Car owner"}
-                      </p>
-                      {req.dropOffDate && (
-                        <p className="text-[11px] text-muted-foreground">
-                          Drop-off: {req.dropOffDate}
-                        </p>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-foreground">Rejected</p>
-                {rejectedRequests.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-3 text-xs text-muted-foreground">
-                    No rejected requests.
-                  </div>
-                ) : (
-                  rejectedRequests.map((req) => (
-                    <div
-                      key={req.id}
-                      className="rounded-lg border border-border/60 bg-background/40 px-3 py-2"
-                    >
-                      <p className="text-sm font-medium text-foreground">
-                        {req.carLabel || "Vehicle"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {req.ownerName || "Car owner"}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">{req.note}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-foreground">Finished</p>
-                {finishedRequests.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-3 text-xs text-muted-foreground">
-                    No finished requests.
-                  </div>
-                ) : (
-                  finishedRequests.map((req) => (
-                    <div
-                      key={req.id}
-                      className="rounded-lg border border-border/60 bg-background/40 px-3 py-2"
-                    >
-                      <p className="text-sm font-medium text-foreground">
-                        {req.carLabel || "Vehicle"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {req.ownerName || "Car owner"}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {req.status === "ready_for_pickup"
-                          ? "Ready for pickup"
-                          : "Completed"}
-                      </p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.section>
-
-        {/*}<motion.section
-          className="space-y-3"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
-        >
-          <Card>
-            <CardHeader>
-              <div>
-                <CardTitle>Clients</CardTitle>
-                <CardDescription>People you&apos;re working with</CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {uniqueClients.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-4 text-xs text-muted-foreground">
-                  No clients with requests today.
-                </div>
-              ) : (
-              uniqueClients.map((client) => (
-                <motion.div
-                  key={client.id}
-                  className="flex items-center justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2 text-xs"
-                  whileHover={{ y: -1 }}
-                  transition={{ duration: 0.12 }}
-                >
-                  <div>
-                    <p className="font-medium text-foreground">
-                      {client.name}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {client.requests} request
-                      {client.requests !== 1 ? "s" : ""} today
-                    </p>
-                  </div>
-                  <span className="inline-flex rounded-full border border-slate-500/30 bg-slate-500/10 px-2.5 py-1 text-[0.72rem] font-medium text-slate-300">
-                    Today
-                  </span>
-                </motion.div>
-              ))
-              )}
-            </CardContent>
-          </Card>
-        </motion.section>
-        */}
       </div>
     </div>
   );

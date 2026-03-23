@@ -46,7 +46,7 @@ export default function MechanicServicePage() {
   const [maintenanceMileage, setMaintenanceMileage] = useState("");
   const [partsPrice, setPartsPrice] = useState(0);
   const [laborPrice, setLaborPrice] = useState(0);
-  const [totalPrice, setTotalPrice] = useState(0);
+  const totalPrice = useMemo(() => partsPrice + laborPrice, [partsPrice, laborPrice]);
 
   const [oilViscosity, setOilViscosity] = useState("");
   const [oilBrand, setOilBrand] = useState("");
@@ -113,7 +113,7 @@ export default function MechanicServicePage() {
 
     const parts = Number(partsPrice) || 0;
     const labor = Number(laborPrice) || 0;
-    const total = Number(totalPrice) || parts + labor;
+    const total = Number(totalPrice) || 0;
 
     let title = "";
     let notes = "";
@@ -231,89 +231,155 @@ export default function MechanicServicePage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <select
-              value={maintenanceType}
-              onChange={(e) => setMaintenanceType(e.target.value as MaintenanceType)}
-              className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2"
-            >
-              <option value="oil_change">Oil change</option>
-              <option value="timing_service">Timing service</option>
-              <option value="brake_service">Brake service</option>
-              <option value="inspection">Inspection</option>
-              <option value="other">Other</option>
-            </select>
-            <Input value={maintenanceDate} onChange={(e) => setMaintenanceDate(e.target.value)} type="date" />
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-foreground">Maintenance type</p>
+              <select
+                value={maintenanceType}
+                onChange={(e) => setMaintenanceType(e.target.value as MaintenanceType)}
+                className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2"
+              >
+                <option value="oil_change">Oil change</option>
+                <option value="timing_service">Timing service</option>
+                <option value="brake_service">Brake service</option>
+                <option value="inspection">Inspection</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-foreground">Service date</p>
+              <Input value={maintenanceDate} onChange={(e) => setMaintenanceDate(e.target.value)} type="date" />
+            </div>
           </div>
 
-          <Input
-            value={maintenanceMileage}
-            onChange={(e) => setMaintenanceMileage(e.target.value)}
-            type="number"
-            min={latestVehicleMileage}
-            placeholder="Mileage at service"
-          />
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-foreground">Mileage at service</p>
+            <Input
+              value={maintenanceMileage}
+              onChange={(e) => setMaintenanceMileage(e.target.value)}
+              type="number"
+              min={latestVehicleMileage}
+              placeholder="Mileage at service"
+            />
+          </div>
           <p className="text-xs text-muted-foreground">
             Mileage must be greater than or equal to latest value ({latestVehicleMileage} km).
           </p>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Input value={String(partsPrice)} onChange={(e) => setPartsPrice(Number(e.target.value) || 0)} type="number" min={0} step="0.01" placeholder="Parts price" />
-            <Input value={String(laborPrice)} onChange={(e) => setLaborPrice(Number(e.target.value) || 0)} type="number" min={0} step="0.01" placeholder="Labor price" />
-            <Input value={String(totalPrice)} onChange={(e) => setTotalPrice(Number(e.target.value) || 0)} type="number" min={0} step="0.01" placeholder="Total price" />
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-foreground">Parts price</p>
+              <div className="relative">
+                <Input value={partsPrice} onChange={(e) => setPartsPrice(Number(e.target.value) || 0)} type="text" placeholder="Parts price" />
+                <span className="text-md absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-foreground">Labor price</p>
+              <div className="relative">
+                <Input value={laborPrice} onChange={(e) => setLaborPrice(Number(e.target.value) || 0)} type="text" placeholder="Labor price" />
+                <span className="text-md absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-foreground">Total price</p>
+              <div className="relative">
+                <Input value={totalPrice} disabled type="text" placeholder="Total price" />
+                <span className="text-md absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
+              </div>
+            </div>
           </div>
 
           {maintenanceType === "oil_change" && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Input value={oilViscosity} onChange={(e) => setOilViscosity(e.target.value)} placeholder="Oil viscosity" />
-              <Input value={oilBrand} onChange={(e) => setOilBrand(e.target.value)} placeholder="Oil brand" />
-              <select value={oilFilterChanged} onChange={(e) => setOilFilterChanged(e.target.value)} className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2">
-                <option value="yes">Oil filter changed: Yes</option>
-                <option value="no">Oil filter changed: No</option>
-              </select>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-foreground">Oil viscosity</p>
+                <Input value={oilViscosity} onChange={(e) => setOilViscosity(e.target.value)} placeholder="Oil viscosity" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-foreground">Oil brand</p>
+                <Input value={oilBrand} onChange={(e) => setOilBrand(e.target.value)} placeholder="Oil brand" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-foreground">Oil filter changed</p>
+                <select value={oilFilterChanged} onChange={(e) => setOilFilterChanged(e.target.value)} className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2">
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+              </div>
             </div>
           )}
 
           {maintenanceType === "timing_service" && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Input value={timingKitBrand} onChange={(e) => setTimingKitBrand(e.target.value)} placeholder="Timing kit brand" />
-              <select value={waterPumpChanged} onChange={(e) => setWaterPumpChanged(e.target.value)} className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2">
-                <option value="yes">Water pump changed: Yes</option>
-                <option value="no">Water pump changed: No</option>
-              </select>
-              <Input value={nextTimingKm} onChange={(e) => setNextTimingKm(e.target.value)} type="number" min={0} placeholder="Next timing at km" />
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-foreground">Timing kit brand</p>
+                <Input value={timingKitBrand} onChange={(e) => setTimingKitBrand(e.target.value)} placeholder="Timing kit brand" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-foreground">Water pump changed</p>
+                <select value={waterPumpChanged} onChange={(e) => setWaterPumpChanged(e.target.value)} className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2">
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-foreground">Next timing at km</p>
+                <Input value={nextTimingKm} onChange={(e) => setNextTimingKm(e.target.value)} type="number" min={0} placeholder="Next timing at km" />
+              </div>
             </div>
           )}
 
           {maintenanceType === "brake_service" && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <select value={brakeAxle} onChange={(e) => setBrakeAxle(e.target.value)} className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2">
-                <option value="front">Front axle</option>
-                <option value="rear">Rear axle</option>
-                <option value="all">All wheels</option>
-              </select>
-              <Input value={padBrand} onChange={(e) => setPadBrand(e.target.value)} placeholder="Pad brand" />
-              <select value={brakeFluidChanged} onChange={(e) => setBrakeFluidChanged(e.target.value)} className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2">
-                <option value="yes">Brake fluid changed: Yes</option>
-                <option value="no">Brake fluid changed: No</option>
-              </select>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-foreground">Brake axle</p>
+                <select value={brakeAxle} onChange={(e) => setBrakeAxle(e.target.value)} className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2">
+                  <option value="front">Front axle</option>
+                  <option value="rear">Rear axle</option>
+                  <option value="all">All wheels</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-foreground">Pad brand</p>
+                <Input value={padBrand} onChange={(e) => setPadBrand(e.target.value)} placeholder="Pad brand" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-foreground">Brake fluid changed</p>
+                <select value={brakeFluidChanged} onChange={(e) => setBrakeFluidChanged(e.target.value)} className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2">
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+              </div>
             </div>
           )}
 
           {maintenanceType === "inspection" && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <select value={inspectionResult} onChange={(e) => setInspectionResult(e.target.value)} className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2">
-                <option value="pass">Pass</option>
-                <option value="advisory">Pass with advisories</option>
-                <option value="fail">Fail</option>
-              </select>
-              <Input value={inspectionValidUntil} onChange={(e) => setInspectionValidUntil(e.target.value)} type="date" />
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-foreground">Inspection result</p>
+                <select value={inspectionResult} onChange={(e) => setInspectionResult(e.target.value)} className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2">
+                  <option value="pass">Pass</option>
+                  <option value="advisory">Pass with advisories</option>
+                  <option value="fail">Fail</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-foreground">Inspection valid until</p>
+                <Input value={inspectionValidUntil} onChange={(e) => setInspectionValidUntil(e.target.value)} type="date" />
+              </div>
             </div>
           )}
 
           {maintenanceType === "other" && (
             <div className="grid grid-cols-1 gap-3">
-              <Input value={otherTitle} onChange={(e) => setOtherTitle(e.target.value)} placeholder="Maintenance title" />
-              <Input value={otherDetails} onChange={(e) => setOtherDetails(e.target.value)} placeholder="Details" />
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-foreground">Maintenance title</p>
+                <Input value={otherTitle} onChange={(e) => setOtherTitle(e.target.value)} placeholder="Maintenance title" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-foreground">Details</p>
+                <Input value={otherDetails} onChange={(e) => setOtherDetails(e.target.value)} placeholder="Details" />
+              </div>
             </div>
           )}
 

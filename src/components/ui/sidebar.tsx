@@ -4,10 +4,6 @@ import { cn } from "@/src/lib/utils";
 import { motion } from "framer-motion";
 import { useAuth } from "@/src/hooks/useAuth";
 
-const links = [
-  { href: "/dashboard/user", label: "Dashboard" },
-];
-
 interface SidebarProps {
   collapsed?: boolean;
 }
@@ -15,6 +11,13 @@ interface SidebarProps {
 export function Sidebar({ collapsed = false }: SidebarProps) {
   const pathname = usePathname();
   const { user } = useAuth();
+  const links =
+    user?.role === "mechanic"
+      ? [
+          { href: "/dashboard/mechanic", label: "Dashboard" },
+          { href: "/dashboard/mechanic/appointments", label: "Appointments" },
+        ]
+      : [{ href: "/dashboard/user", label: "Dashboard" }];
   
   return (
     <motion.aside
