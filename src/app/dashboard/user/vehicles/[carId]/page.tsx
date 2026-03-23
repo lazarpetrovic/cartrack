@@ -10,6 +10,7 @@ import {
   deleteCarForUser,
   getCarByIdForUser,
   getMaintenanceForCar,
+  markRepairCompletedForOwner,
   getRepairRequestsForCar,
   scheduleRepairForCar,
   subscribeMaintenanceForCar,
@@ -43,6 +44,7 @@ export default function VehicleDetailsPage() {
   const [savingCar, setSavingCar] = useState(false);
   const [deletingCar, setDeletingCar] = useState(false);
   const [schedulingRepair, setSchedulingRepair] = useState(false);
+  const [confirmingPickupId, setConfirmingPickupId] = useState<string | null>(null);
   const [carForm, setCarForm] = useState<Omit<Car, "id" | "ownerId">>({
     make: "",
     model: "",
@@ -57,6 +59,11 @@ export default function VehicleDetailsPage() {
   const [selectedMechanicId, setSelectedMechanicId] = useState("");
   const [repairNote, setRepairNote] = useState("");
 
+  const formatMoney = (value?: number) => {
+    const safe = Number(value ?? 0);
+    return `${safe.toFixed(2)} EUR`;
+  };
+
   const getRequestStatusPillClass = (status: RepairRequest["status"]) => {
     if (status === "accepted") {
       return "border border-emerald-400/30 bg-emerald-500/10 text-emerald-300";
@@ -64,9 +71,38 @@ export default function VehicleDetailsPage() {
     if (status === "rejected") {
       return "border border-rose-400/30 bg-rose-500/10 text-rose-300";
     }
+    if (status === "ready_for_pickup") {
+      return "border border-sky-400/30 bg-sky-500/10 text-sky-300";
+    }
+    if (status === "in_progress") {
+      return "border border-amber-400/30 bg-amber-500/10 text-amber-200";
+    }
+    if (status === "completed") {
+      return "border border-indigo-400/30 bg-indigo-500/10 text-indigo-300";
+    }
     return "border border-slate-500/30 bg-slate-500/10 text-slate-300";
   };
 
+  const awaitingRequests = useMemo(
+    () => repairRequests.filter((request) => request.status === "scheduled"),
+    [repairRequests]
+  );
+  const acceptedRequests = useMemo(
+    () => repairRequests.filter((request) => request.status === "accepted"),
+    [repairRequests]
+  );
+  const rejectedRequests = useMemo(
+    () => repairRequests.filter((request) => request.status === "rejected"),
+    [repairRequests]
+  );
+  const inServiceRequests = useMemo(
+    () => repairRequests.filter((request) => request.status === "in_progress"),
+    [repairRequests]
+  );
+  const pickupRequests = useMemo(
+    () => repairRequests.filter((request) => request.status === "ready_for_pickup"),
+    [repairRequests]
+  );
   useEffect(() => {
     if (!user) return;
     if (user.role === "mechanic") {
@@ -198,6 +234,21 @@ export default function VehicleDetailsPage() {
       router.push("/dashboard/user");
     } finally {
       setDeletingCar(false);
+    }
+  };
+
+  const handleConfirmPickup = async (requestId: string) => {
+    if (!user) return;
+    setConfirmingPickupId(requestId);
+    try {
+      await markRepairCompletedForOwner(user.uid, requestId);
+      setRepairRequests((prev) =>
+        prev.map((request) =>
+          request.id === requestId ? { ...request, status: "completed" } : request
+        )
+      );
+    } finally {
+      setConfirmingPickupId(null);
     }
   };
 
@@ -490,38 +541,162 @@ export default function VehicleDetailsPage() {
         <CardHeader>
           <CardTitle>Scheduled repairs</CardTitle>
           <CardDescription>
-            Repair requests for this vehicle.
+            Repair requests for this vehicle grouped by status.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-4">
           {repairRequests.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
               No repair requests yet. Schedule the first one above.
             </div>
           ) : (
-            repairRequests.map((request) => (
-              <div
-                key={request.id}
-                className="flex items-start justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2"
-              >
-                <div>
-                  <p className="text-sm font-medium">{request.mechanicName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {request.dropOffDate
-                      ? `Drop-off date: ${request.dropOffDate}`
-                      : "Drop-off date: awaiting mechanic confirmation"}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">{request.note}</p>
-                </div>
-                <span
-                  className={`inline-flex rounded-full px-2.5 py-1 text-[0.72rem] font-medium capitalize ${getRequestStatusPillClass(
-                    request.status
-                  )}`}
-                >
-                  {request.status.replace("_", " ")}
-                </span>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-foreground">Awaiting response</p>
+                {awaitingRequests.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-3 text-xs text-muted-foreground">
+                    No pending requests.
+                  </div>
+                ) : (
+                  awaitingRequests.map((request) => (
+                    <div
+                      key={request.id}
+                      className="rounded-lg border border-border/60 bg-background/40 px-3 py-2"
+                    >
+                      <p className="text-sm font-medium">{request.mechanicName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Waiting for mechanic confirmation
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">{request.note}</p>
+                    </div>
+                  ))
+                )}
               </div>
-            ))
+
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-foreground">Accepted - drop off</p>
+                {acceptedRequests.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-3 text-xs text-muted-foreground">
+                    No accepted requests.
+                  </div>
+                ) : (
+                  acceptedRequests.map((request) => (
+                    <div
+                      key={request.id}
+                      className="rounded-lg border border-emerald-400/25 bg-emerald-500/5 px-3 py-2"
+                    >
+                      <p className="text-sm font-medium">{request.mechanicName}</p>
+                      <p className="text-xs text-emerald-200/90">
+                        Drop-off date:{" "}
+                        {request.dropOffDate || "awaiting mechanic confirmation"}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">{request.note}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-foreground">In service</p>
+                {inServiceRequests.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-3 text-xs text-muted-foreground">
+                    No cars in service right now.
+                  </div>
+                ) : (
+                  inServiceRequests.map((request) => (
+                    <div
+                      key={request.id}
+                      className="rounded-lg border border-amber-400/25 bg-amber-500/5 px-3 py-2"
+                    >
+                      <p className="text-sm font-medium">{request.mechanicName}</p>
+                      <p className="text-xs text-amber-100/90">
+                        Your car is currently being serviced.
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">{request.note}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-foreground">
+                  Ready for pickup
+                </p>
+                {pickupRequests.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-3 text-xs text-muted-foreground">
+                    No cars are waiting for pickup.
+                  </div>
+                ) : (
+                  pickupRequests.map((request) => (
+                    <div
+                      key={request.id}
+                      className="rounded-lg border border-sky-400/25 bg-sky-500/5 px-3 py-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium">{request.mechanicName}</p>
+                        <div className="flex items-center gap-2">
+                          {request.status === "ready_for_pickup" && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-[11px]"
+                              disabled={confirmingPickupId === request.id}
+                              onClick={() => void handleConfirmPickup(request.id)}
+                            >
+                              {confirmingPickupId === request.id
+                                ? "Confirming..."
+                                : "Confirm pickup"}
+                            </Button>
+                          )}
+                          <span
+                            className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${getRequestStatusPillClass(
+                              request.status
+                            )}`}
+                          >
+                            {request.status.replace("_", " ")}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="mt-1 text-xs text-sky-100/90">
+                        Your car is ready for pickup.
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <p className="text-sm font-semibold text-foreground">Rejected</p>
+                {rejectedRequests.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-3 text-xs text-muted-foreground">
+                    No rejected requests.
+                  </div>
+                ) : (
+                  rejectedRequests.map((request) => (
+                    <div
+                      key={request.id}
+                      className="flex items-start justify-between rounded-lg border border-rose-400/25 bg-rose-500/5 px-3 py-2"
+                    >
+                      <div>
+                        <p className="text-sm font-medium">{request.mechanicName}</p>
+                        <p className="text-xs text-rose-100/90">
+                          Request rejected. Please schedule with another mechanic.
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">{request.note}</p>
+                      </div>
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-[0.72rem] font-medium capitalize ${getRequestStatusPillClass(
+                          request.status
+                        )}`}
+                      >
+                        {request.status.replace("_", " ")}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -548,6 +723,13 @@ export default function VehicleDetailsPage() {
                   <p className="text-sm font-medium">{item.title}</p>
                   <p className="text-xs text-muted-foreground">
                     {item.serviceDate} • {item.mileage} km
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Parts: {formatMoney(item.partsPrice)} • Labor:{" "}
+                    {formatMoney(item.laborPrice)} • Total:{" "}
+                    <span className="font-medium text-foreground">
+                      {formatMoney(item.totalPrice)}
+                    </span>
                   </p>
                   {item.notes ? (
                     <p className="mt-1 text-xs text-muted-foreground">
