@@ -60,6 +60,7 @@ export interface RepairRequest {
     | "scheduled"
     | "accepted"
     | "rejected"
+    | "ready_for_pickup"
     | "in_progress"
     | "completed"
     | "cancelled";
@@ -127,6 +128,26 @@ export async function getCarByIdForUser(
   };
 }
 
+export async function getCarById(carId: string): Promise<Car | null> {
+  const carRef = doc(db, CARS_COLLECTION, carId);
+  const snapshot = await getDoc(carRef);
+  if (!snapshot.exists()) return null;
+
+  const data = snapshot.data() as DocumentData;
+  return {
+    id: snapshot.id,
+    ownerId: data.ownerId,
+    make: data.make,
+    model: data.model,
+    mileage: data.mileage,
+    year: data.year,
+    fuelType: data.fuelType,
+    drivetrain: data.drivetrain,
+    transmission: data.transmission,
+    vin: data.vin,
+  };
+}
+
 export async function getMaintenanceForCar(
   ownerId: string,
   carId: string
@@ -135,6 +156,36 @@ export async function getMaintenanceForCar(
     collection(db, MAINTENANCE_COLLECTION),
     where("ownerId", "==", ownerId),
     where("carId", "==", carId)
+  );
+  const snapshot = await getDocs(q);
+  const entries: MaintenanceEntry[] = [];
+  snapshot.forEach((docSnap) => {
+    const data = docSnap.data() as DocumentData;
+    entries.push({
+      id: docSnap.id,
+      ownerId: data.ownerId,
+      carId: data.carId,
+      title: data.title,
+      status: data.status,
+      serviceDate: data.serviceDate,
+      mileage: data.mileage,
+      notes: data.notes ?? "",
+      partsPrice: data.partsPrice,
+      laborPrice: data.laborPrice,
+      totalPrice: data.totalPrice,
+    });
+  });
+
+  entries.sort((a, b) => (a.serviceDate < b.serviceDate ? 1 : -1));
+  return entries;
+}
+
+export async function getMaintenanceForOwner(
+  ownerId: string
+): Promise<MaintenanceEntry[]> {
+  const q = query(
+    collection(db, MAINTENANCE_COLLECTION),
+    where("ownerId", "==", ownerId)
   );
   const snapshot = await getDocs(q);
   const entries: MaintenanceEntry[] = [];
@@ -258,6 +309,38 @@ export async function getRepairRequestsForCar(
   return requests;
 }
 
+export async function getRepairRequestsForOwner(
+  ownerId: string
+): Promise<RepairRequest[]> {
+  const q = query(
+    collection(db, REPAIR_REQUESTS_COLLECTION),
+    where("ownerId", "==", ownerId)
+  );
+  const snapshot = await getDocs(q);
+  const requests: RepairRequest[] = [];
+
+  snapshot.forEach((docSnap) => {
+    const data = docSnap.data() as DocumentData;
+    requests.push({
+      id: docSnap.id,
+      ownerId: data.ownerId,
+      carId: data.carId,
+      mechanicId: data.mechanicId,
+      mechanicName: data.mechanicName,
+      ownerName: data.ownerName ?? "",
+      carLabel: data.carLabel ?? "",
+      carMileage: data.carMileage,
+      note: data.note ?? "",
+      dropOffDate: data.dropOffDate,
+      status: data.status ?? "scheduled",
+      createdAtMs: data.createdAt?.toMillis?.() ?? 0,
+    });
+  });
+
+  requests.sort((a, b) => b.createdAtMs - a.createdAtMs);
+  return requests;
+}
+
 export async function getRepairRequestsForMechanicToday(
   mechanicId: string
 ): Promise<RepairRequest[]> {
@@ -332,8 +415,39 @@ export async function getRepairScheduleForMechanicDate(
   });
 
   return requests.filter(
-    (request) => request.status === "accepted" || request.status === "in_progress"
+    (request) =>
+      request.status === "accepted" ||
+      request.status === "in_progress" ||
+      request.status === "ready_for_pickup" ||
+      request.status === "completed"
   );
+}
+
+export async function getRepairRequestByIdForMechanic(
+  mechanicId: string,
+  requestId: string
+): Promise<RepairRequest | null> {
+  const requestRef = doc(db, REPAIR_REQUESTS_COLLECTION, requestId);
+  const snapshot = await getDoc(requestRef);
+  if (!snapshot.exists()) return null;
+
+  const data = snapshot.data() as DocumentData;
+  if (data.mechanicId !== mechanicId) return null;
+
+  return {
+    id: snapshot.id,
+    ownerId: data.ownerId,
+    carId: data.carId,
+    mechanicId: data.mechanicId,
+    mechanicName: data.mechanicName,
+    ownerName: data.ownerName ?? "",
+    carLabel: data.carLabel ?? "",
+    carMileage: data.carMileage,
+    note: data.note ?? "",
+    dropOffDate: data.dropOffDate,
+    status: data.status ?? "scheduled",
+    createdAtMs: data.createdAt?.toMillis?.() ?? 0,
+  };
 }
 
 export async function updateRepairRequestStatusForMechanic(
@@ -363,6 +477,24 @@ export async function updateRepairRequestStatusForMechanic(
   }
 
   await updateDoc(requestRef, payload);
+}
+
+export async function markRepairReadyForPickup(
+  mechanicId: string,
+  requestId: string
+): Promise<void> {
+  const requestRef = doc(db, REPAIR_REQUESTS_COLLECTION, requestId);
+  const snapshot = await getDoc(requestRef);
+  if (!snapshot.exists()) {
+    throw new Error("Repair request not found.");
+  }
+
+  const data = snapshot.data() as DocumentData;
+  if (data.mechanicId !== mechanicId) {
+    throw new Error("Not allowed to update this request.");
+  }
+
+  await updateDoc(requestRef, { status: "ready_for_pickup" });
 }
 
 export async function updateCarForUser(

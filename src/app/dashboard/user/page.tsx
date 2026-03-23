@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/src/hooks/useAuth";
 import { motion } from "framer-motion";
@@ -15,44 +15,22 @@ import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Modal } from "@/src/components/ui/modal";
 import { Input } from "@/src/components/ui/input";
-import { addCarForUser, getCarsForUser, type Car } from "@/src/lib/cars";
-
-const mockHistory = [
-  {
-    id: "h1",
-    car: "Volkswagen Golf 7",
-    service: "Oil change & filter",
-    date: "2025-12-10",
-    status: "Completed",
-  },
-  {
-    id: "h2",
-    car: "Audi A4",
-    service: "Brake pads replacement",
-    date: "2026-02-03",
-    status: "Completed",
-  },
-];
-
-const mockUpcoming = [
-  {
-    id: "u1",
-    car: "Volkswagen Golf 7",
-    service: "Regular inspection",
-    dueDate: "2026-04-01",
-  },
-  {
-    id: "u2",
-    car: "Audi A4",
-    service: "Tire rotation",
-    dueDate: "2026-05-15",
-  },
-];
+import {
+  addCarForUser,
+  getCarsForUser,
+  getMaintenanceForOwner,
+  getRepairRequestsForOwner,
+  type Car,
+  type MaintenanceEntry,
+  type RepairRequest,
+} from "@/src/lib/cars";
 
 export default function UserDashboardPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [cars, setCars] = useState<Car[]>([]);
+  const [serviceHistory, setServiceHistory] = useState<MaintenanceEntry[]>([]);
+  const [repairRequests, setRepairRequests] = useState<RepairRequest[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
@@ -73,10 +51,60 @@ export default function UserDashboardPage() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const result = await getCarsForUser(user.uid);
-      setCars(result);
+      const [carResult, historyResult, requestResult] = await Promise.all([
+        getCarsForUser(user.uid),
+        getMaintenanceForOwner(user.uid),
+        getRepairRequestsForOwner(user.uid),
+      ]);
+      setCars(carResult);
+      setServiceHistory(historyResult);
+      setRepairRequests(requestResult);
     })();
   }, [user]);
+
+  const acceptedRequests = useMemo(
+    () => repairRequests.filter((r) => r.status === "accepted"),
+    [repairRequests]
+  );
+  const rejectedRequests = useMemo(
+    () => repairRequests.filter((r) => r.status === "rejected"),
+    [repairRequests]
+  );
+  const inServiceRequests = useMemo(
+    () => repairRequests.filter((r) => r.status === "in_progress"),
+    [repairRequests]
+  );
+  const readyForPickupRequests = useMemo(
+    () => repairRequests.filter((r) => r.status === "ready_for_pickup"),
+    [repairRequests]
+  );
+  const finishedRequests = useMemo(
+    () => repairRequests.filter((r) => r.status === "completed"),
+    [repairRequests]
+  );
+  const awaitingDecisionRequests = useMemo(
+    () => repairRequests.filter((r) => r.status === "scheduled"),
+    [repairRequests]
+  );
+
+  const getRequestStatusPillClass = (status: RepairRequest["status"]) => {
+    if (status === "accepted") {
+      return "border border-emerald-400/30 bg-emerald-500/10 text-emerald-300";
+    }
+    if (status === "rejected") {
+      return "border border-rose-400/30 bg-rose-500/10 text-rose-300";
+    }
+    if (status === "ready_for_pickup") {
+      return "border border-sky-400/30 bg-sky-500/10 text-sky-300";
+    }
+    if (status === "in_progress") {
+      return "border border-amber-400/30 bg-amber-500/10 text-amber-200";
+    }
+    if (status === "completed") {
+      return "border border-indigo-400/30 bg-indigo-500/10 text-indigo-300";
+    }
+    return "border border-slate-500/30 bg-slate-500/10 text-slate-300";
+  };
 
   const handleAddCar = async () => {
     if (!user) return;
@@ -152,22 +180,22 @@ export default function UserDashboardPage() {
         <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.15 }}>
           <Card>
             <CardHeader>
-              <CardTitle>Upcoming services</CardTitle>
-              <CardDescription>Next 30 days</CardDescription>
+              <CardTitle>Need drop-off</CardTitle>
+              <CardDescription>Accepted by mechanic</CardDescription>
             </CardHeader>
             <CardContent className="text-2xl font-semibold">
-              {mockUpcoming.length}
+              {acceptedRequests.length}
             </CardContent>
           </Card>
         </motion.div>
         <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.15 }}>
           <Card>
             <CardHeader>
-              <CardTitle>Completed this year</CardTitle>
-              <CardDescription>Based on your history</CardDescription>
+              <CardTitle>Ready for pickup</CardTitle>
+              <CardDescription>Cars waiting for you</CardDescription>
             </CardHeader>
             <CardContent className="text-2xl font-semibold">
-              {mockHistory.length}
+              {readyForPickupRequests.length}
             </CardContent>
           </Card>
         </motion.div>
@@ -182,8 +210,10 @@ export default function UserDashboardPage() {
           <Card>
             <CardHeader>
               <div>
-                <CardTitle>Service history</CardTitle>
-                <CardDescription>Recent work on your cars</CardDescription>
+                <CardTitle>Repair request flow</CardTitle>
+                <CardDescription>
+                  Track approvals, drop-off dates, service progress and pickup.
+                </CardDescription>
               </div>
             </CardHeader>
             <CardContent>
@@ -192,27 +222,65 @@ export default function UserDashboardPage() {
                   <thead className="bg-muted/60 text-[11px] uppercase text-muted-foreground">
                     <tr>
                       <th className="px-3 py-2">Car</th>
-                      <th className="px-3 py-2">Service</th>
-                      <th className="px-3 py-2">Date</th>
+                      <th className="px-3 py-2">Mechanic</th>
+                      <th className="px-3 py-2">Next step</th>
+                      <th className="px-3 py-2">Drop-off</th>
                       <th className="px-3 py-2 text-right">Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {mockHistory.map((item) => (
-                      <tr
-                        key={item.id}
-                        className="border-t border-border/40 text-[11px] text-foreground/90"
-                      >
-                        <td className="px-3 py-2">{item.car}</td>
-                        <td className="px-3 py-2">{item.service}</td>
-                        <td className="px-3 py-2 text-muted-foreground">
-                          {item.date}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          <Badge variant="success">{item.status}</Badge>
+                    {repairRequests.length === 0 ? (
+                      <tr className="border-t border-border/40 text-[11px] text-muted-foreground">
+                        <td className="px-3 py-3" colSpan={5}>
+                          No repair requests yet. Open a vehicle to schedule one.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      repairRequests.map((request) => {
+                        const requestCar = cars.find((c) => c.id === request.carId);
+                        const carLabel =
+                          request.carLabel ||
+                          (requestCar ? `${requestCar.make} ${requestCar.model}` : "Vehicle");
+                        const nextStep =
+                          request.status === "scheduled"
+                            ? "Waiting for mechanic response"
+                            : request.status === "accepted"
+                              ? "Drop-off your car"
+                              : request.status === "in_progress"
+                                ? "Car is being serviced"
+                                : request.status === "ready_for_pickup"
+                                  ? "Pick up your car"
+                                  : request.status === "completed"
+                                    ? "Service finished"
+                                    : request.status === "rejected"
+                                      ? "Choose another mechanic"
+                                      : "-";
+                        return (
+                          <tr
+                            key={request.id}
+                            className="border-t border-border/40 text-[11px] text-foreground/90"
+                          >
+                            <td className="px-3 py-2">{carLabel}</td>
+                            <td className="px-3 py-2">{request.mechanicName}</td>
+                            <td className="px-3 py-2 text-muted-foreground">
+                              {nextStep}
+                            </td>
+                            <td className="px-3 py-2 text-muted-foreground">
+                              {request.dropOffDate || "-"}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <span
+                                className={`inline-flex rounded-full px-2.5 py-1 text-[0.72rem] font-medium capitalize ${getRequestStatusPillClass(
+                                  request.status
+                                )}`}
+                              >
+                                {request.status.replace("_", " ")}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -267,30 +335,108 @@ export default function UserDashboardPage() {
           <Card>
             <CardHeader>
               <div>
-                <CardTitle>Upcoming maintenance</CardTitle>
-                <CardDescription>Stay ahead of issues</CardDescription>
+                <CardTitle>Request status groups</CardTitle>
+                <CardDescription>What needs action right now</CardDescription>
               </div>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {mockUpcoming.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-50"
-                >
-                  <p className="font-medium">{item.car}</p>
-                  <p className="mt-0.5 text-[11px] opacity-80">
-                    {item.service}
-                  </p>
-                  <p className="mt-1 text-[11px]">
-                    Due by{" "}
-                    <span className="font-semibold">{item.dueDate}</span>
-                  </p>
-                </div>
-              ))}
+            <CardContent className="space-y-3 text-xs">
+              <div className="rounded-lg border border-border/60 bg-background/40 px-3 py-2">
+                <p className="font-medium text-foreground">Awaiting response</p>
+                <p className="text-muted-foreground">
+                  {awaitingDecisionRequests.length} request
+                  {awaitingDecisionRequests.length !== 1 ? "s" : ""}
+                </p>
+              </div>
+              <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2">
+                <p className="font-medium text-emerald-200">Accepted</p>
+                <p className="text-emerald-100/80">
+                  {acceptedRequests.length} accepted - check drop-off date
+                </p>
+              </div>
+              <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2">
+                <p className="font-medium text-amber-200">In service</p>
+                <p className="text-amber-100/80">
+                  {inServiceRequests.length} currently being worked on
+                </p>
+              </div>
+              <div className="rounded-lg border border-sky-400/30 bg-sky-500/10 px-3 py-2">
+                <p className="font-medium text-sky-200">Ready for pickup</p>
+                <p className="text-sky-100/80">
+                  {readyForPickupRequests.length} waiting for pickup
+                </p>
+              </div>
+              <div className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2">
+                <p className="font-medium text-rose-200">Rejected</p>
+                <p className="text-rose-100/80">
+                  {rejectedRequests.length} rejected - schedule another request
+                </p>
+              </div>
+              <div className="rounded-lg border border-indigo-400/30 bg-indigo-500/10 px-3 py-2">
+                <p className="font-medium text-indigo-200">Finished</p>
+                <p className="text-indigo-100/80">
+                  {finishedRequests.length} completed requests
+                </p>
+              </div>
             </CardContent>
           </Card>
         </motion.section>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Maintenance history</CardTitle>
+          <CardDescription>Completed work across all your vehicles.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-hidden rounded-lg border border-border/60 bg-background/40">
+            <table className="min-w-full text-left text-xs">
+              <thead className="bg-muted/60 text-[11px] uppercase text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2">Car</th>
+                  <th className="px-3 py-2">Service</th>
+                  <th className="px-3 py-2">Date</th>
+                  <th className="px-3 py-2 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {serviceHistory.length === 0 ? (
+                  <tr className="border-t border-border/40 text-[11px] text-muted-foreground">
+                    <td className="px-3 py-3" colSpan={4}>
+                      No maintenance entries yet.
+                    </td>
+                  </tr>
+                ) : (
+                  serviceHistory.map((item) => {
+                    const car = cars.find((c) => c.id === item.carId);
+                    const carLabel = car ? `${car.make} ${car.model}` : "Vehicle";
+                    return (
+                      <tr
+                        key={item.id}
+                        className="border-t border-border/40 text-[11px] text-foreground/90"
+                      >
+                        <td className="px-3 py-2">{carLabel}</td>
+                        <td className="px-3 py-2">{item.title}</td>
+                        <td className="px-3 py-2 text-muted-foreground">
+                          {item.serviceDate}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <Badge
+                            variant={
+                              item.status === "completed" ? "success" : "warning"
+                            }
+                          >
+                            {item.status}
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       <Modal
         open={addOpen}
