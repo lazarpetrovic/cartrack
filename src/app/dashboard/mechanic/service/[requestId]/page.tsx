@@ -6,6 +6,7 @@ import { useAuth } from "@/src/hooks/useAuth";
 import {
   addMaintenanceForCar,
   getCarById,
+  markRepairInProgress,
   getRepairRequestByIdForMechanic,
   markRepairReadyForPickup,
   type RepairRequest,
@@ -71,7 +72,11 @@ export default function MechanicServicePage() {
     const run = async () => {
       setLoading(true);
       try {
-        const result = await getRepairRequestByIdForMechanic(user.uid, requestId);
+        let result = await getRepairRequestByIdForMechanic(user.uid, requestId);
+        if (result?.status === "accepted") {
+          await markRepairInProgress(user.uid, result.id);
+          result = { ...result, status: "in_progress" };
+        }
         setRequest(result);
         if (!result) {
           setLatestVehicleMileage(0);

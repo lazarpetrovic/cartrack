@@ -15,6 +15,7 @@ import { Button } from "@/src/components/ui/button";
 import {
   getRepairScheduleForMechanicDate,
   getRepairRequestsForMechanicToday,
+  markRepairInProgress,
   updateRepairRequestStatusForMechanic,
   type RepairRequest,
 } from "@/src/lib/cars";
@@ -170,6 +171,20 @@ export default function MechanicDashboardPage() {
     return "border border-slate-500/30 bg-slate-500/10 text-slate-300";
   };
 
+  const handleStartService = async (request: RepairRequest) => {
+    if (!user) return;
+    if (request.status === "accepted") {
+      await markRepairInProgress(user.uid, request.id);
+      setTodayRequests((prev) =>
+        prev.map((r) => (r.id === request.id ? { ...r, status: "in_progress" } : r))
+      );
+      setScheduledForDate((prev) =>
+        prev.map((r) => (r.id === request.id ? { ...r, status: "in_progress" } : r))
+      );
+    }
+    router.push(`/dashboard/mechanic/service/${request.id}`);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1">
@@ -276,9 +291,7 @@ export default function MechanicDashboardPage() {
                             size="sm"
                             variant="outline"
                             className="h-7 px-2 text-[11px]"
-                            onClick={() =>
-                              router.push(`/dashboard/mechanic/service/${request.id}`)
-                            }
+                            onClick={() => void handleStartService(request)}
                           >
                             Start service
                           </Button>

@@ -497,6 +497,46 @@ export async function markRepairReadyForPickup(
   await updateDoc(requestRef, { status: "ready_for_pickup" });
 }
 
+export async function markRepairInProgress(
+  mechanicId: string,
+  requestId: string
+): Promise<void> {
+  const requestRef = doc(db, REPAIR_REQUESTS_COLLECTION, requestId);
+  const snapshot = await getDoc(requestRef);
+  if (!snapshot.exists()) {
+    throw new Error("Repair request not found.");
+  }
+
+  const data = snapshot.data() as DocumentData;
+  if (data.mechanicId !== mechanicId) {
+    throw new Error("Not allowed to update this request.");
+  }
+
+  await updateDoc(requestRef, { status: "in_progress" });
+}
+
+export async function markRepairCompletedForOwner(
+  ownerId: string,
+  requestId: string
+): Promise<void> {
+  const requestRef = doc(db, REPAIR_REQUESTS_COLLECTION, requestId);
+  const snapshot = await getDoc(requestRef);
+  if (!snapshot.exists()) {
+    throw new Error("Repair request not found.");
+  }
+
+  const data = snapshot.data() as DocumentData;
+  if (data.ownerId !== ownerId) {
+    throw new Error("Not allowed to update this request.");
+  }
+
+  if (data.status !== "ready_for_pickup" && data.status !== "completed") {
+    throw new Error("Pickup can only be confirmed for ready requests.");
+  }
+
+  await updateDoc(requestRef, { status: "completed" });
+}
+
 export async function updateCarForUser(
   ownerId: string,
   carId: string,

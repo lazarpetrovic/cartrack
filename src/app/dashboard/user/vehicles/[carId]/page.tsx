@@ -10,6 +10,7 @@ import {
   deleteCarForUser,
   getCarByIdForUser,
   getMaintenanceForCar,
+  markRepairCompletedForOwner,
   getRepairRequestsForCar,
   scheduleRepairForCar,
   subscribeMaintenanceForCar,
@@ -43,6 +44,7 @@ export default function VehicleDetailsPage() {
   const [savingCar, setSavingCar] = useState(false);
   const [deletingCar, setDeletingCar] = useState(false);
   const [schedulingRepair, setSchedulingRepair] = useState(false);
+  const [confirmingPickupId, setConfirmingPickupId] = useState<string | null>(null);
   const [carForm, setCarForm] = useState<Omit<Car, "id" | "ownerId">>({
     make: "",
     model: "",
@@ -237,6 +239,21 @@ export default function VehicleDetailsPage() {
       router.push("/dashboard/user");
     } finally {
       setDeletingCar(false);
+    }
+  };
+
+  const handleConfirmPickup = async (requestId: string) => {
+    if (!user) return;
+    setConfirmingPickupId(requestId);
+    try {
+      await markRepairCompletedForOwner(user.uid, requestId);
+      setRepairRequests((prev) =>
+        prev.map((request) =>
+          request.id === requestId ? { ...request, status: "completed" } : request
+        )
+      );
+    } finally {
+      setConfirmingPickupId(null);
     }
   };
 
@@ -622,13 +639,29 @@ export default function VehicleDetailsPage() {
                     >
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-medium">{request.mechanicName}</p>
-                        <span
-                          className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${getRequestStatusPillClass(
-                            request.status
-                          )}`}
-                        >
-                          {request.status.replace("_", " ")}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          {request.status === "ready_for_pickup" && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-[11px]"
+                              disabled={confirmingPickupId === request.id}
+                              onClick={() => void handleConfirmPickup(request.id)}
+                            >
+                              {confirmingPickupId === request.id
+                                ? "Confirming..."
+                                : "Confirm pickup"}
+                            </Button>
+                          )}
+                          <span
+                            className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${getRequestStatusPillClass(
+                              request.status
+                            )}`}
+                          >
+                            {request.status.replace("_", " ")}
+                          </span>
+                        </div>
                       </div>
                       <p className="mt-1 text-xs text-sky-100/90">
                         {request.status === "ready_for_pickup"

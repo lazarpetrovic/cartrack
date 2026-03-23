@@ -19,6 +19,7 @@ import {
   addCarForUser,
   getCarsForUser,
   getMaintenanceForOwner,
+  markRepairCompletedForOwner,
   getRepairRequestsForOwner,
   type Car,
   type MaintenanceEntry,
@@ -41,6 +42,7 @@ export default function UserDashboardPage() {
   const [transmission, setTransmission] = useState("manual");
   const [vin, setVin] = useState("");
   const [saving, setSaving] = useState(false);
+  const [confirmingPickupId, setConfirmingPickupId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user && user.role === "mechanic") {
@@ -151,6 +153,21 @@ export default function UserDashboardPage() {
     }
   };
 
+  const handleConfirmPickup = async (requestId: string) => {
+    if (!user) return;
+    setConfirmingPickupId(requestId);
+    try {
+      await markRepairCompletedForOwner(user.uid, requestId);
+      setRepairRequests((prev) =>
+        prev.map((request) =>
+          request.id === requestId ? { ...request, status: "completed" } : request
+        )
+      );
+    } finally {
+      setConfirmingPickupId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1">
@@ -226,12 +243,13 @@ export default function UserDashboardPage() {
                       <th className="px-3 py-2">Next step</th>
                       <th className="px-3 py-2">Drop-off</th>
                       <th className="px-3 py-2 text-right">Status</th>
+                      <th className="px-3 py-2 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {repairRequests.length === 0 ? (
                       <tr className="border-t border-border/40 text-[11px] text-muted-foreground">
-                        <td className="px-3 py-3" colSpan={5}>
+                        <td className="px-3 py-3" colSpan={6}>
                           No repair requests yet. Open a vehicle to schedule one.
                         </td>
                       </tr>
@@ -276,6 +294,24 @@ export default function UserDashboardPage() {
                               >
                                 {request.status.replace("_", " ")}
                               </span>
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              {request.status === "ready_for_pickup" ? (
+                                <Button
+                                  type="button"
+                                  size="md"
+                                  variant="outline"
+                                  className="py-4 px-2.5 text-md"
+                                  disabled={confirmingPickupId === request.id}
+                                  onClick={() => void handleConfirmPickup(request.id)}
+                                >
+                                  {confirmingPickupId === request.id
+                                    ? "Confirming..."
+                                    : "Confirm pickup"}
+                                </Button>
+                              ) : (
+                                "-"
+                              )}
                             </td>
                           </tr>
                         );
@@ -362,7 +398,7 @@ export default function UserDashboardPage() {
               <div className="rounded-lg border border-sky-400/30 bg-sky-500/10 px-3 py-2">
                 <p className="font-medium text-sky-200">Ready for pickup</p>
                 <p className="text-sky-100/80">
-                  {readyForPickupRequests.length} waiting for pickup
+                  {readyForPickupRequests.length} waiting for pickup (confirm to move to history)
                 </p>
               </div>
               <div className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2">
