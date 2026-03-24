@@ -28,6 +28,7 @@ import {
 } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
+import { Modal } from "@/src/components/ui/modal";
 
 export default function VehicleDetailsPage() {
   const { user } = useAuth();
@@ -45,6 +46,7 @@ export default function VehicleDetailsPage() {
   const [deletingCar, setDeletingCar] = useState(false);
   const [schedulingRepair, setSchedulingRepair] = useState(false);
   const [confirmingPickupId, setConfirmingPickupId] = useState<string | null>(null);
+  const [selectedMaintenance, setSelectedMaintenance] = useState<MaintenanceEntry | null>(null);
   const [carForm, setCarForm] = useState<Omit<Car, "id" | "ownerId">>({
     make: "",
     model: "",
@@ -62,6 +64,11 @@ export default function VehicleDetailsPage() {
   const formatMoney = (value?: number) => {
     const safe = Number(value ?? 0);
     return `${safe.toFixed(2)} EUR`;
+  };
+  const getMaintenanceTotal = (entry: MaintenanceEntry) => {
+    const total = Number(entry.totalPrice ?? 0);
+    if (total > 0) return total;
+    return Number(entry.partsPrice ?? 0) + Number(entry.laborPrice ?? 0);
   };
 
   const getRequestStatusPillClass = (status: RepairRequest["status"]) => {
@@ -231,7 +238,7 @@ export default function VehicleDetailsPage() {
     setDeletingCar(true);
     try {
       await deleteCarForUser(user.uid, car.id);
-      router.push("/dashboard/user");
+      router.push("/dashboard/user/cars");
     } finally {
       setDeletingCar(false);
     }
@@ -271,8 +278,8 @@ export default function VehicleDetailsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button type="button" onClick={() => router.push("/dashboard/user")}>
-            Back to dashboard
+          <Button type="button" onClick={() => router.push("/dashboard/user/cars")}>
+            Back to cars
           </Button>
         </CardContent>
       </Card>
@@ -293,7 +300,7 @@ export default function VehicleDetailsPage() {
         <Button
           type="button"
           variant="outline"
-          onClick={() => router.push("/dashboard/user")}
+          onClick={() => router.push("/dashboard/user/cars")}
         >
           Back
         </Button>
@@ -487,7 +494,7 @@ export default function VehicleDetailsPage() {
                   placeholder="VIN"
                 />
               ) : (
-                <p className="font-medium">{car.vin || "-"}</p>
+                <p className="font-medium uppercase">{car.vin || "-"}</p>
               )}
             </div>
           </CardContent>
@@ -717,7 +724,7 @@ export default function VehicleDetailsPage() {
             maintenance.map((item) => (
               <div
                 key={item.id}
-                className="flex items-start justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2"
+                className="flex items-start justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2 transition hover:border-primary/40 hover:bg-background/60"
               >
                 <div>
                   <p className="text-sm font-medium">{item.title}</p>
@@ -738,19 +745,134 @@ export default function VehicleDetailsPage() {
                   ) : null}
                 </div>
                 <span
-                  className={`inline-flex rounded-full px-2.5 py-1 text-[0.72rem] font-medium capitalize ${
-                    item.status === "completed"
-                      ? "border border-emerald-400/30 bg-emerald-500/10 text-emerald-300"
-                      : "border border-slate-500/30 bg-slate-500/10 text-slate-300"
-                  }`}
+                  className="flex items-center gap-2"
                 >
-                  {item.status}
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-1 text-[0.72rem] font-medium capitalize ${
+                      item.status === "completed"
+                        ? "border border-emerald-400/30 bg-emerald-500/10 text-emerald-300"
+                        : "border border-slate-500/30 bg-slate-500/10 text-slate-300"
+                    }`}
+                  >
+                    {item.status}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-[11px]"
+                    onClick={() => setSelectedMaintenance(item)}
+                  >
+                    Details
+                  </Button>
                 </span>
               </div>
             ))
           )}
         </CardContent>
       </Card>
+
+      <Modal
+        open={selectedMaintenance !== null}
+        onClose={() => setSelectedMaintenance(null)}
+        title={selectedMaintenance ? selectedMaintenance.title : "Maintenance details"}
+      >
+        {selectedMaintenance ? (
+          <div className="space-y-4 text-sm">
+            <div className="rounded-lg border border-border/60 bg-background/40 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-base font-semibold text-foreground">
+                    {selectedMaintenance.title}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Service date: {selectedMaintenance.serviceDate}
+                  </p>
+                </div>
+                <span
+                  className={`inline-flex rounded-full px-2.5 py-1 text-[0.72rem] font-medium capitalize ${
+                    selectedMaintenance.status === "completed"
+                      ? "border border-emerald-400/30 bg-emerald-500/10 text-emerald-300"
+                      : "border border-slate-500/30 bg-slate-500/10 text-slate-300"
+                  }`}
+                >
+                  {selectedMaintenance.status}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="rounded-md border border-border/60 bg-background/40 px-3 py-2">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                  Mileage at service
+                </p>
+                <p className="font-medium text-foreground">{selectedMaintenance.mileage} km</p>
+              </div>
+              <div className="rounded-md border border-border/60 bg-background/40 px-3 py-2">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                  Entry ID
+                </p>
+                <p className="truncate font-mono text-xs text-foreground">
+                  {selectedMaintenance.id}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border/60 bg-background/40 p-3">
+              <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+                Cost breakdown
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">Parts</p>
+                  <p className="font-medium text-foreground">
+                    {formatMoney(selectedMaintenance.partsPrice)}
+                  </p>
+                </div>
+                <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">Labor</p>
+                  <p className="font-medium text-foreground">
+                    {formatMoney(selectedMaintenance.laborPrice)}
+                  </p>
+                </div>
+                <div className="rounded-md border border-primary/40 bg-primary/10 px-3 py-2">
+                  <p className="text-[11px] text-primary/80">Total</p>
+                  <p className="font-semibold text-foreground">
+                    {formatMoney(getMaintenanceTotal(selectedMaintenance))}
+                  </p>
+                </div>
+              </div>
+              {Number(selectedMaintenance.totalPrice ?? 0) <= 0 ? (
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Total is calculated from parts + labor.
+                </p>
+              ) : null}
+            </div>
+
+            <div className="rounded-lg border border-border/60 bg-background/40 p-3">
+              <p className="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+                Mechanic notes
+              </p>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                {selectedMaintenance.notes?.trim()
+                  ? selectedMaintenance.notes
+                  : "No additional notes were provided for this service."}
+              </p>
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setSelectedMaintenance(null)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }
