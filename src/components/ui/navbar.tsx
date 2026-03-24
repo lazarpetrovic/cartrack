@@ -1,16 +1,26 @@
 'use client';
 
-import { useAuth } from "@/src/hooks/useAuth";
-import { logout } from "@/src/lib/auth";
-import { Button } from "@/src/components/ui/button";
+import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 
 export function Navbar() {
-  const { user } = useAuth();
-
-  const handleLogout = async () => {
-    await logout();
-  };
+  const pathname = usePathname();
+  const menuLabel =
+    pathname.startsWith("/dashboard/user/cars")
+      ? "Cars"
+      : pathname.startsWith("/dashboard/mechanic/appointments")
+        ? "Appointments"
+        : "Dashboard";
+  const contextText =
+    pathname.startsWith("/dashboard/user/cars")
+      ? "Manage your vehicles and total spend."
+      : pathname.startsWith("/dashboard/user/vehicles/")
+        ? "Track one vehicle status and service flow."
+        : pathname.startsWith("/dashboard/mechanic/appointments")
+          ? "Review planned/completed work by date."
+          : pathname.startsWith("/dashboard/mechanic/service/")
+            ? "Add maintenance and finish service."
+            : "Track your services and maintenance history.";
 
   return (
     <motion.header
@@ -20,27 +30,12 @@ export function Navbar() {
     >
       <div className="flex flex-col">
         <span className="text-sm font-normal text-muted-foreground">
-          Track your services and maintenance history.
+          {contextText}
         </span>
         <span className="text-md font-semibold text-foreground">
-          Dashboard
+          {menuLabel}
         </span>
       </div>
-      {user && (
-        <div className="flex items-center gap-3">
-          <div className="hidden flex-col text-right text-sm text-muted-foreground sm:flex">
-            <span className="font-medium text-foreground">
-              {user.email ?? "Signed in"}
-            </span>
-            <div>
-              Role: {" "}<span className="font-medium text-foreground">{user.role}</span>
-            </div>
-          </div>
-          <Button variant="outline" size="md" onClick={handleLogout}>
-            Logout
-          </Button>
-        </div>
-      )}
     </motion.header>
   );
 }

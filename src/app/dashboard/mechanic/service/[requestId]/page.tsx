@@ -73,7 +73,7 @@ export default function MechanicServicePage() {
       setLoading(true);
       try {
         let result = await getRepairRequestByIdForMechanic(user.uid, requestId);
-        if (result?.status === "accepted") {
+        if (result?.status === "dropped_off") {
           await markRepairInProgress(user.uid, result.id);
           result = { ...result, status: "in_progress" };
         }
@@ -180,6 +180,48 @@ export default function MechanicServicePage() {
           </Button>
         </CardContent>
       </Card>
+    );
+  }
+
+  if (request.status === "accepted") {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">
+              Start service
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              Wait for the owner to confirm the vehicle drop-off before starting work.
+            </p>
+          </div>
+          <Button type="button" variant="outline" onClick={() => router.push("/dashboard/mechanic")}>
+            Back
+          </Button>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Vehicle not dropped off yet</CardTitle>
+            <CardDescription>
+              The appointment is accepted for {request.dropOffDate || "the selected date"}, but the
+              owner has not marked the car as dropped off yet.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
+            <p>
+              Car: <span className="font-medium text-foreground">{request.carLabel || "Vehicle"}</span>
+            </p>
+            <p>
+              Owner:{" "}
+              <span className="font-medium text-foreground">
+                {request.ownerName || "Car owner"}
+              </span>
+            </p>
+            <p>Ask the owner to use the drop-off confirmation button from their dashboard.</p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 

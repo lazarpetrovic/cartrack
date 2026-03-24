@@ -487,7 +487,7 @@ export default function VehicleDetailsPage() {
                   placeholder="VIN"
                 />
               ) : (
-                <p className="font-medium">{car.vin || "-"}</p>
+                <p className="font-medium uppercase">{car.vin || "-"}</p>
               )}
             </div>
           </CardContent>

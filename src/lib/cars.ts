@@ -60,6 +60,7 @@ export interface RepairRequest {
   status:
     | "scheduled"
     | "accepted"
+    | "dropped_off"
     | "rejected"
     | "ready_for_pickup"
     | "in_progress"
@@ -483,6 +484,7 @@ export async function getRepairScheduleForMechanicDate(
   return requests.filter(
     (request) =>
       request.status === "accepted" ||
+      request.status === "dropped_off" ||
       request.status === "in_progress" ||
       request.status === "ready_for_pickup" ||
       request.status === "completed"
@@ -578,7 +580,33 @@ export async function markRepairInProgress(
     throw new Error("Not allowed to update this request.");
   }
 
+  if (data.status !== "dropped_off" && data.status !== "in_progress") {
+    throw new Error("Service can only start after the owner drops off the car.");
+  }
+
   await updateDoc(requestRef, { status: "in_progress" });
+}
+
+export async function markRepairDroppedOffForOwner(
+  ownerId: string,
+  requestId: string
+): Promise<void> {
+  const requestRef = doc(db, REPAIR_REQUESTS_COLLECTION, requestId);
+  const snapshot = await getDoc(requestRef);
+  if (!snapshot.exists()) {
+    throw new Error("Repair request not found.");
+  }
+
+  const data = snapshot.data() as DocumentData;
+  if (data.ownerId !== ownerId) {
+    throw new Error("Not allowed to update this request.");
+  }
+
+  if (data.status !== "accepted" && data.status !== "dropped_off") {
+    throw new Error("Drop-off can only be confirmed after mechanic acceptance.");
+  }
+
+  await updateDoc(requestRef, { status: "dropped_off" });
 }
 
 export async function markRepairCompletedForOwner(

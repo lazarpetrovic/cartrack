@@ -247,7 +247,7 @@ export default function MechanicDashboardPage() {
                         className="h-7 px-2 text-[11px]"
                         onClick={() => void handleStartService(request)}
                       >
-                        Start service
+                        {request.status === "in_progress" ? "Continue service" : "Start service"}
                       </Button>
                     )}
                     <span

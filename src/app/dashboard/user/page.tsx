@@ -13,10 +13,7 @@ import {
 } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import { Modal } from "@/src/components/ui/modal";
-import { Input } from "@/src/components/ui/input";
 import {
-  addCarForUser,
   getCarsForUser,
   markRepairCompletedForOwner,
   getRepairRequestsForOwner,
@@ -29,16 +26,6 @@ export default function UserDashboardPage() {
   const router = useRouter();
   const [cars, setCars] = useState<Car[]>([]);
   const [repairRequests, setRepairRequests] = useState<RepairRequest[]>([]);
-  const [addOpen, setAddOpen] = useState(false);
-  const [make, setMake] = useState("");
-  const [model, setModel] = useState("");
-  const [mileage, setMileage] = useState("");
-  const [year, setYear] = useState("");
-  const [fuelType, setFuelType] = useState("petrol");
-  const [drivetrain, setDrivetrain] = useState("fwd");
-  const [transmission, setTransmission] = useState("manual");
-  const [vin, setVin] = useState("");
-  const [saving, setSaving] = useState(false);
   const [confirmingPickupId, setConfirmingPickupId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -101,51 +88,6 @@ export default function UserDashboardPage() {
       return "border border-indigo-400/30 bg-indigo-500/10 text-indigo-300";
     }
     return "border border-slate-500/30 bg-slate-500/10 text-slate-300";
-  };
-
-  const handleAddCar = async () => {
-    if (!user) return;
-    setSaving(true);
-    try {
-      const mileageNumber = Number(mileage) || 0;
-      const yearNumber = Number(year) || new Date().getFullYear();
-      const id = await addCarForUser(user.uid, {
-        make,
-        model,
-        mileage: mileageNumber,
-        year: yearNumber,
-        fuelType,
-        drivetrain,
-        transmission,
-        vin,
-      });
-      setCars((prev) => [
-        ...prev,
-        {
-          id,
-          ownerId: user.uid,
-          make,
-          model,
-          mileage: mileageNumber,
-          year: yearNumber,
-          fuelType,
-          drivetrain,
-          transmission,
-          vin,
-        },
-      ]);
-      setAddOpen(false);
-      setMake("");
-      setModel("");
-      setMileage("");
-      setYear("");
-      setVin("");
-      setFuelType("petrol");
-      setDrivetrain("fwd");
-      setTransmission("manual");
-    } finally {
-      setSaving(false);
-    }
   };
 
   const handleConfirmPickup = async (requestId: string) => {
@@ -328,44 +270,6 @@ export default function UserDashboardPage() {
           <Card>
             <CardHeader>
               <div>
-                <CardTitle>Your cars</CardTitle>
-                <CardDescription>Quick overview</CardDescription>
-              </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="solid"
-                onClick={() => setAddOpen(true)}
-              >
-                Add car
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {cars.map((car) => (
-                <motion.div
-                  key={car.id}
-                  className="flex cursor-pointer items-center justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2 text-xs"
-                  whileHover={{ y: -1 }}
-                  transition={{ duration: 0.12 }}
-                  onClick={() => router.push(`/dashboard/user/vehicles/${car.id}`)}
-                >
-                  <div>
-                    <p className="font-medium text-foreground">
-                      {car.make} {car.model}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {car.year} • {car.mileage} km
-                    </p>
-                  </div>
-                  <Badge variant="outline">Active</Badge>
-                </motion.div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <div>
                 <CardTitle>Request status groups</CardTitle>
                 <CardDescription>What needs action right now</CardDescription>
               </div>
@@ -412,100 +316,6 @@ export default function UserDashboardPage() {
           </Card>
         </motion.section>
       </div>
-
-      <Modal
-        open={addOpen}
-        onClose={() => !saving && setAddOpen(false)}
-        title="Add car"
-      >
-        <div className="space-y-3">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Input
-              value={make}
-              onChange={(e) => setMake(e.target.value)}
-              placeholder="Make (e.g. Volkswagen)"
-              required
-            />
-            <Input
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="Model (e.g. Golf 7)"
-              required
-            />
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Input
-              value={mileage}
-              onChange={(e) => setMileage(e.target.value)}
-              placeholder="Mileage (km)"
-              type="number"
-              min={0}
-            />
-            <Input
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
-              placeholder="Year"
-              type="number"
-              min={1950}
-              max={new Date().getFullYear() + 1}
-            />
-            <Input
-              value={vin}
-              onChange={(e) => setVin(e.target.value)}
-              placeholder="VIN"
-            />
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs text-muted-foreground">
-            <select
-              className="h-10 rounded-md border border-border bg-background px-3 text-xs text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2"
-              value={fuelType}
-              onChange={(e) => setFuelType(e.target.value)}
-            >
-              <option value="petrol">Petrol</option>
-              <option value="diesel">Diesel</option>
-              <option value="hybrid">Hybrid</option>
-              <option value="electric">Electric</option>
-            </select>
-            <select
-              className="h-10 rounded-md border border-border bg-background px-3 text-xs text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2"
-              value={drivetrain}
-              onChange={(e) => setDrivetrain(e.target.value)}
-            >
-              <option value="fwd">FWD</option>
-              <option value="rwd">RWD</option>
-              <option value="awd">AWD / 4WD</option>
-            </select>
-            <select
-              className="h-10 rounded-md border border-border bg-background px-3 text-xs text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2"
-              value={transmission}
-              onChange={(e) => setTransmission(e.target.value)}
-            >
-              <option value="manual">Manual</option>
-              <option value="automatic">Automatic</option>
-              <option value="cvt">CVT</option>
-            </select>
-          </div>
-          <div className="mt-4 flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => !saving && setAddOpen(false)}
-              disabled={saving}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleAddCar}
-              disabled={saving || !make || !model}
-            >
-              {saving ? "Saving..." : "Save car"}
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }

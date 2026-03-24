@@ -94,6 +94,9 @@ export default function MechanicAppointmentsPage() {
     if (status === "accepted") {
       return "border border-emerald-400/30 bg-emerald-500/10 text-emerald-300";
     }
+    if (status === "dropped_off") {
+      return "border border-violet-400/30 bg-violet-500/10 text-violet-200";
+    }
     if (status === "rejected") {
       return "border border-rose-400/30 bg-rose-500/10 text-rose-300";
     }
