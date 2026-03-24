@@ -183,7 +183,7 @@ export default function UserCarsPage() {
                 className="flex cursor-pointer items-center justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2 text-xs"
                 whileHover={{ y: -1 }}
                 transition={{ duration: 0.12 }}
-                onClick={() => router.push(`/dashboard/user/vehicles/${car.id}`)}
+                onClick={() => router.push(`/dashboard/user/cars/${car.id}`)}
               >
                 <div>
                   <p className="font-medium text-foreground">

@@ -12,10 +12,10 @@ export function Navbar() {
         ? "Appointments"
         : "Dashboard";
   const contextText =
-    pathname.startsWith("/dashboard/user/cars")
-      ? "Manage your vehicles and total spend."
-      : pathname.startsWith("/dashboard/user/vehicles/")
-        ? "Track one vehicle status and service flow."
+    pathname.startsWith("/dashboard/user/cars/")
+      ? "Track one vehicle status and service flow."
+      : pathname.startsWith("/dashboard/user/cars")
+        ? "Manage your vehicles and total spend."
         : pathname.startsWith("/dashboard/mechanic/appointments")
           ? "Review planned/completed work by date."
           : pathname.startsWith("/dashboard/mechanic/service/")
