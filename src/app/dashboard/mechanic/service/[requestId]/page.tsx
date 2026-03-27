@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/src/hooks/useAuth";
+import { useToast } from "@/src/context/ToastContext";
 import {
   addMaintenanceForCar,
   getCarById,
@@ -30,6 +31,7 @@ type MaintenanceType =
 
 export default function MechanicServicePage() {
   const { user } = useAuth();
+  const { showError } = useToast();
   const router = useRouter();
   const params = useParams<{ requestId: string }>();
   const requestId = useMemo(() => params?.requestId ?? "", [params]);
@@ -107,7 +109,7 @@ export default function MechanicServicePage() {
     const latestMileage = latestVehicleMileage;
     const mileageNumber = Number(maintenanceMileage) || 0;
     if (mileageNumber < latestMileage) {
-      alert(`Mileage must be at least latest mileage (${latestMileage} km).`);
+      showError(`Mileage must be at least latest mileage (${latestMileage} km).`);
       return;
     }
 
@@ -186,7 +188,7 @@ export default function MechanicServicePage() {
   if (request.status === "accepted") {
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-xl font-semibold tracking-tight text-foreground">
               Start service
@@ -195,7 +197,12 @@ export default function MechanicServicePage() {
               Wait for the owner to confirm the vehicle drop-off before starting work.
             </p>
           </div>
-          <Button type="button" variant="outline" onClick={() => router.push("/dashboard/mechanic")}>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full sm:w-auto"
+            onClick={() => router.push("/dashboard/mechanic")}
+          >
             Back
           </Button>
         </div>
@@ -227,7 +234,7 @@ export default function MechanicServicePage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
             Start service
@@ -236,7 +243,12 @@ export default function MechanicServicePage() {
             Add maintenance for selected vehicle and finish the service.
           </p>
         </div>
-        <Button type="button" variant="outline" onClick={() => router.push("/dashboard/mechanic")}>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full sm:w-auto"
+          onClick={() => router.push("/dashboard/mechanic")}
+        >
           Back
         </Button>
       </div>

@@ -45,11 +45,11 @@ export default function MechanicAppointmentsPage() {
       setLoading(true);
       try {
         const [todayEntries, selectedEntries, vehicles, requests] = await Promise.all([
-          getMaintenanceForMechanicDate(user.uid, todayDate),
-          getMaintenanceForMechanicDate(user.uid, selectedDate),
-          getRepairScheduleForMechanicDate(user.uid, selectedDate),
-          getRepairRequestsForMechanic(user.uid),
-        ]);
+            getMaintenanceForMechanicDate(user.uid, todayDate),
+            getMaintenanceForMechanicDate(user.uid, selectedDate),
+            getRepairScheduleForMechanicDate(user.uid, selectedDate),
+            getRepairRequestsForMechanic(user.uid),
+          ]);
         setTodayMaintenance(todayEntries);
         setDateMaintenance(selectedEntries);
         setDateVehicles(vehicles);
@@ -112,6 +112,7 @@ export default function MechanicAppointmentsPage() {
     return "border border-slate-500/30 bg-slate-500/10 text-slate-300";
   };
 
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1">
@@ -123,7 +124,7 @@ export default function MechanicAppointmentsPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.15 }}>
           <Card>
             <CardHeader>
@@ -190,7 +191,7 @@ export default function MechanicAppointmentsPage() {
                   dateVehicles.map((request) => (
                     <div
                       key={request.id}
-                      className="flex items-start justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2"
+                      className="flex flex-col gap-2 rounded-lg border border-border/60 bg-background/40 px-3 py-2 sm:flex-row sm:items-start sm:justify-between"
                     >
                       <div>
                         <p className="text-sm font-medium text-foreground">
@@ -246,6 +247,7 @@ export default function MechanicAppointmentsPage() {
           )}
         </CardContent>
       </Card>
+
     </div>
   );
 }

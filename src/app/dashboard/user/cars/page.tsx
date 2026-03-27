@@ -133,14 +133,14 @@ export default function UserCarsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">Your cars</h1>
           <p className="text-xs text-muted-foreground">
             Manage vehicles and track spend by car.
           </p>
         </div>
-        <Button type="button" size="sm" onClick={() => setAddOpen(true)}>
+        <Button type="button" size="sm" className="w-full sm:w-auto" onClick={() => setAddOpen(true)}>
           Add car
         </Button>
       </div>
@@ -180,7 +180,7 @@ export default function UserCarsPage() {
             cars.map((car) => (
               <motion.div
                 key={car.id}
-                className="flex cursor-pointer items-center justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2 text-xs"
+                className="flex cursor-pointer flex-col items-start gap-2 rounded-lg border border-border/60 bg-background/40 px-3 py-2 text-xs sm:flex-row sm:items-center sm:justify-between"
                 whileHover={{ y: -1 }}
                 transition={{ duration: 0.12 }}
                 onClick={() => router.push(`/dashboard/user/cars/${car.id}`)}

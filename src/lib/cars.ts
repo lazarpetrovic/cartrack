@@ -17,6 +17,7 @@ import { db } from "@/src/lib/firebase";
 const CARS_COLLECTION = "cars";
 const MAINTENANCE_COLLECTION = "maintenance";
 const REPAIR_REQUESTS_COLLECTION = "repairRequests";
+const MAINTENANCE_CHANGE_REQUESTS_COLLECTION = "maintenanceChangeRequests";
 
 export interface Car {
   id: string;
@@ -44,6 +45,29 @@ export interface MaintenanceEntry {
   partsPrice?: number;
   laborPrice?: number;
   totalPrice?: number;
+  isDeleted?: boolean;
+  deletedAtMs?: number;
+  deletedByMechanicId?: string;
+  deletedReason?: string;
+}
+
+export interface MaintenanceChangeRequest {
+  id: string;
+  ownerId: string;
+  mechanicId: string;
+  carId: string;
+  maintenanceId: string;
+  maintenanceTitle: string;
+  serviceDate: string;
+  mileage: number;
+  notes: string;
+  partsPrice?: number;
+  laborPrice?: number;
+  totalPrice?: number;
+  ownerNote: string;
+  status: "open" | "resolved" | "dismissed";
+  createdAtMs: number;
+  resolvedAtMs?: number;
 }
 
 export interface RepairRequest {
@@ -163,10 +187,12 @@ export async function getMaintenanceForCar(
   const entries: MaintenanceEntry[] = [];
   snapshot.forEach((docSnap) => {
     const data = docSnap.data() as DocumentData;
+    if (data.isDeleted === true) return;
     entries.push({
       id: docSnap.id,
       ownerId: data.ownerId,
       carId: data.carId,
+      mechanicId: data.mechanicId,
       title: data.title,
       status: data.status,
       serviceDate: data.serviceDate,
@@ -175,6 +201,10 @@ export async function getMaintenanceForCar(
       partsPrice: data.partsPrice,
       laborPrice: data.laborPrice,
       totalPrice: data.totalPrice,
+      isDeleted: data.isDeleted === true,
+      deletedAtMs: data.deletedAt?.toMillis?.() ?? undefined,
+      deletedByMechanicId: data.deletedByMechanicId,
+      deletedReason: data.deletedReason,
     });
   });
 
@@ -193,10 +223,12 @@ export async function getMaintenanceForOwner(
   const entries: MaintenanceEntry[] = [];
   snapshot.forEach((docSnap) => {
     const data = docSnap.data() as DocumentData;
+    if (data.isDeleted === true) return;
     entries.push({
       id: docSnap.id,
       ownerId: data.ownerId,
       carId: data.carId,
+      mechanicId: data.mechanicId,
       title: data.title,
       status: data.status,
       serviceDate: data.serviceDate,
@@ -205,6 +237,10 @@ export async function getMaintenanceForOwner(
       partsPrice: data.partsPrice,
       laborPrice: data.laborPrice,
       totalPrice: data.totalPrice,
+      isDeleted: data.isDeleted === true,
+      deletedAtMs: data.deletedAt?.toMillis?.() ?? undefined,
+      deletedByMechanicId: data.deletedByMechanicId,
+      deletedReason: data.deletedReason,
     });
   });
 
@@ -225,6 +261,7 @@ export async function getMaintenanceForMechanicDate(
   const entries: MaintenanceEntry[] = [];
   snapshot.forEach((docSnap) => {
     const data = docSnap.data() as DocumentData;
+    if (data.isDeleted === true) return;
     entries.push({
       id: docSnap.id,
       ownerId: data.ownerId,
@@ -238,6 +275,10 @@ export async function getMaintenanceForMechanicDate(
       partsPrice: data.partsPrice,
       laborPrice: data.laborPrice,
       totalPrice: data.totalPrice,
+      isDeleted: data.isDeleted === true,
+      deletedAtMs: data.deletedAt?.toMillis?.() ?? undefined,
+      deletedByMechanicId: data.deletedByMechanicId,
+      deletedReason: data.deletedReason,
     });
   });
 
@@ -260,10 +301,12 @@ export function subscribeMaintenanceForCar(
     const entries: MaintenanceEntry[] = [];
     snapshot.forEach((docSnap) => {
       const data = docSnap.data() as DocumentData;
+      if (data.isDeleted === true) return;
       entries.push({
         id: docSnap.id,
         ownerId: data.ownerId,
         carId: data.carId,
+        mechanicId: data.mechanicId,
         title: data.title,
         status: data.status,
         serviceDate: data.serviceDate,
@@ -272,6 +315,10 @@ export function subscribeMaintenanceForCar(
         partsPrice: data.partsPrice,
         laborPrice: data.laborPrice,
         totalPrice: data.totalPrice,
+        isDeleted: data.isDeleted === true,
+        deletedAtMs: data.deletedAt?.toMillis?.() ?? undefined,
+        deletedByMechanicId: data.deletedByMechanicId,
+        deletedReason: data.deletedReason,
       });
     });
     entries.sort((a, b) => (a.serviceDate < b.serviceDate ? 1 : -1));
@@ -290,9 +337,155 @@ export async function addMaintenanceForCar(
     carId,
     mechanicId,
     ...data,
+    isDeleted: false,
     createdAt: serverTimestamp(),
   });
   return ref.id;
+}
+
+export async function createMaintenanceChangeRequestForOwner(
+  ownerId: string,
+  maintenance: MaintenanceEntry,
+  ownerNote: string
+): Promise<string> {
+  const maintenanceRef = doc(db, MAINTENANCE_COLLECTION, maintenance.id);
+  const maintenanceSnapshot = await getDoc(maintenanceRef);
+  if (!maintenanceSnapshot.exists()) {
+    throw new Error("Maintenance entry not found.");
+  }
+  const existing = maintenanceSnapshot.data() as DocumentData;
+  if (existing.ownerId !== ownerId) {
+    throw new Error("Not allowed to request changes for this entry.");
+  }
+  if (existing.isDeleted === true) {
+    throw new Error("This maintenance entry has already been removed.");
+  }
+  if (!existing.mechanicId) {
+    throw new Error("Maintenance entry is missing assigned mechanic.");
+  }
+
+  const ref = await addDoc(collection(db, MAINTENANCE_CHANGE_REQUESTS_COLLECTION), {
+    ownerId,
+    mechanicId: existing.mechanicId,
+    carId: existing.carId,
+    maintenanceId: maintenance.id,
+    maintenanceTitle: existing.title ?? "Maintenance",
+    serviceDate: existing.serviceDate ?? "",
+    mileage: Number(existing.mileage ?? 0),
+    notes: existing.notes ?? "",
+    partsPrice: Number(existing.partsPrice ?? 0),
+    laborPrice: Number(existing.laborPrice ?? 0),
+    totalPrice: Number(existing.totalPrice ?? 0),
+    ownerNote: ownerNote.trim(),
+    status: "open",
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function getOpenMaintenanceChangeRequestsForMechanic(
+  mechanicId: string
+): Promise<MaintenanceChangeRequest[]> {
+  const q = query(
+    collection(db, MAINTENANCE_CHANGE_REQUESTS_COLLECTION),
+    where("mechanicId", "==", mechanicId),
+    where("status", "==", "open")
+  );
+  const snapshot = await getDocs(q);
+  const requests: MaintenanceChangeRequest[] = [];
+  snapshot.forEach((docSnap) => {
+    const data = docSnap.data() as DocumentData;
+    requests.push({
+      id: docSnap.id,
+      ownerId: data.ownerId,
+      mechanicId: data.mechanicId,
+      carId: data.carId,
+      maintenanceId: data.maintenanceId,
+      maintenanceTitle: data.maintenanceTitle ?? "Maintenance",
+      serviceDate: data.serviceDate ?? "",
+      mileage: Number(data.mileage ?? 0),
+      notes: data.notes ?? "",
+      partsPrice: Number(data.partsPrice ?? 0),
+      laborPrice: Number(data.laborPrice ?? 0),
+      totalPrice: Number(data.totalPrice ?? 0),
+      ownerNote: data.ownerNote ?? "",
+      status: data.status ?? "open",
+      createdAtMs: data.createdAt?.toMillis?.() ?? 0,
+      resolvedAtMs: data.resolvedAt?.toMillis?.() ?? undefined,
+    });
+  });
+  requests.sort((a, b) => b.createdAtMs - a.createdAtMs);
+  return requests;
+}
+
+export async function resolveMaintenanceChangeRequestForMechanic(
+  mechanicId: string,
+  requestId: string,
+  status: "resolved" | "dismissed" = "resolved"
+): Promise<void> {
+  const requestRef = doc(db, MAINTENANCE_CHANGE_REQUESTS_COLLECTION, requestId);
+  const snapshot = await getDoc(requestRef);
+  if (!snapshot.exists()) {
+    throw new Error("Change request not found.");
+  }
+  const data = snapshot.data() as DocumentData;
+  if (data.mechanicId !== mechanicId) {
+    throw new Error("Not allowed to resolve this change request.");
+  }
+  await updateDoc(requestRef, {
+    status,
+    resolvedAt: serverTimestamp(),
+  });
+}
+
+export async function updateMaintenanceForMechanic(
+  mechanicId: string,
+  maintenanceId: string,
+  data: {
+    title: string;
+    serviceDate: string;
+    mileage: number;
+    notes: string;
+    partsPrice?: number;
+    laborPrice?: number;
+    totalPrice?: number;
+  }
+): Promise<void> {
+  const maintenanceRef = doc(db, MAINTENANCE_COLLECTION, maintenanceId);
+  const snapshot = await getDoc(maintenanceRef);
+  if (!snapshot.exists()) {
+    throw new Error("Maintenance entry not found.");
+  }
+  const existing = snapshot.data() as DocumentData;
+  if (existing.mechanicId !== mechanicId) {
+    throw new Error("Not allowed to edit this maintenance entry.");
+  }
+  await updateDoc(maintenanceRef, {
+    ...data,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function softDeleteMaintenanceForMechanic(
+  mechanicId: string,
+  maintenanceId: string,
+  reason: string
+): Promise<void> {
+  const maintenanceRef = doc(db, MAINTENANCE_COLLECTION, maintenanceId);
+  const snapshot = await getDoc(maintenanceRef);
+  if (!snapshot.exists()) {
+    throw new Error("Maintenance entry not found.");
+  }
+  const existing = snapshot.data() as DocumentData;
+  if (existing.mechanicId !== mechanicId) {
+    throw new Error("Not allowed to delete this maintenance entry.");
+  }
+  await updateDoc(maintenanceRef, {
+    isDeleted: true,
+    deletedReason: reason.trim() || "Deleted by mechanic",
+    deletedByMechanicId: mechanicId,
+    deletedAt: serverTimestamp(),
+  });
 }
 
 export async function scheduleRepairForCar(
