@@ -188,7 +188,7 @@ export default function MechanicServicePage() {
   if (request.status === "accepted") {
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-xl font-semibold tracking-tight text-foreground">
               Start service
@@ -197,7 +197,12 @@ export default function MechanicServicePage() {
               Wait for the owner to confirm the vehicle drop-off before starting work.
             </p>
           </div>
-          <Button type="button" variant="outline" onClick={() => router.push("/dashboard/mechanic")}>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full sm:w-auto"
+            onClick={() => router.push("/dashboard/mechanic")}
+          >
             Back
           </Button>
         </div>
@@ -229,7 +234,7 @@ export default function MechanicServicePage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
             Start service
@@ -238,7 +243,12 @@ export default function MechanicServicePage() {
             Add maintenance for selected vehicle and finish the service.
           </p>
         </div>
-        <Button type="button" variant="outline" onClick={() => router.push("/dashboard/mechanic")}>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full sm:w-auto"
+          onClick={() => router.push("/dashboard/mechanic")}
+        >
           Back
         </Button>
       </div>

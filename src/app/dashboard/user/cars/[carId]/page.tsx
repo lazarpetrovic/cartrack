@@ -311,7 +311,7 @@ export default function VehicleDetailsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
             {car.make} {car.model}
@@ -323,6 +323,7 @@ export default function VehicleDetailsPage() {
         <Button
           type="button"
           variant="outline"
+          className="w-full sm:w-auto"
           onClick={() => router.push("/dashboard/user/cars")}
         >
           Back
@@ -336,9 +337,9 @@ export default function VehicleDetailsPage() {
       >
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle>Vehicle information</CardTitle>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {editingCar ? (
                   <>
                     <Button
@@ -393,7 +394,7 @@ export default function VehicleDetailsPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3 text-xs">
+          <CardContent className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
             <div>
               <p className="text-muted-foreground">Make</p>
               {editingCar ? (
@@ -682,7 +683,7 @@ export default function VehicleDetailsPage() {
                       key={request.id}
                       className="rounded-lg border border-sky-400/25 bg-sky-500/5 px-3 py-2"
                     >
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm font-medium">{request.mechanicName}</p>
                         <div className="flex items-center gap-2">
                           {request.status === "ready_for_pickup" && (
@@ -726,7 +727,7 @@ export default function VehicleDetailsPage() {
                   rejectedRequests.map((request) => (
                     <div
                       key={request.id}
-                      className="flex items-start justify-between rounded-lg border border-rose-400/25 bg-rose-500/5 px-3 py-2"
+                      className="flex flex-col gap-2 rounded-lg border border-rose-400/25 bg-rose-500/5 px-3 py-2 sm:flex-row sm:items-start sm:justify-between"
                     >
                       <div>
                         <p className="text-sm font-medium">{request.mechanicName}</p>
@@ -767,7 +768,7 @@ export default function VehicleDetailsPage() {
             maintenance.map((item) => (
               <div
                 key={item.id}
-                className="flex items-start justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2 transition hover:border-primary/40 hover:bg-background/60"
+                className="flex flex-col gap-2 rounded-lg border border-border/60 bg-background/40 px-3 py-2 transition hover:border-primary/40 hover:bg-background/60 sm:flex-row sm:items-start sm:justify-between"
               >
                 <div>
                   <p className="text-sm font-medium">{item.title}</p>

@@ -38,7 +38,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
     <motion.aside
       initial={false}
       animate={{ width: collapsed ? 64 : 220 }}
-      className="sticky top-0 flex h-screen shrink-0 flex-col overflow-y-auto border-r border-border bg-sidebar/80 px-3 py-4 backdrop-blur"
+      className="sticky top-0 hidden h-screen shrink-0 flex-col overflow-y-auto border-r border-border bg-sidebar/80 px-3 py-4 backdrop-blur md:flex"
     >
       <div className="mb-6 flex items-center gap-2 px-1">
         <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-xs font-semibold text-white">
