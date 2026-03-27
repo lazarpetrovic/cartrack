@@ -45,11 +45,11 @@ export default function MechanicAppointmentsPage() {
       setLoading(true);
       try {
         const [todayEntries, selectedEntries, vehicles, requests] = await Promise.all([
-          getMaintenanceForMechanicDate(user.uid, todayDate),
-          getMaintenanceForMechanicDate(user.uid, selectedDate),
-          getRepairScheduleForMechanicDate(user.uid, selectedDate),
-          getRepairRequestsForMechanic(user.uid),
-        ]);
+            getMaintenanceForMechanicDate(user.uid, todayDate),
+            getMaintenanceForMechanicDate(user.uid, selectedDate),
+            getRepairScheduleForMechanicDate(user.uid, selectedDate),
+            getRepairRequestsForMechanic(user.uid),
+          ]);
         setTodayMaintenance(todayEntries);
         setDateMaintenance(selectedEntries);
         setDateVehicles(vehicles);
@@ -111,6 +111,7 @@ export default function MechanicAppointmentsPage() {
     }
     return "border border-slate-500/30 bg-slate-500/10 text-slate-300";
   };
+
 
   return (
     <div className="space-y-6">
@@ -246,6 +247,7 @@ export default function MechanicAppointmentsPage() {
           )}
         </CardContent>
       </Card>
+
     </div>
   );
 }

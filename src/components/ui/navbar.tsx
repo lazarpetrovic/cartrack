@@ -12,6 +12,10 @@ export function Navbar() {
   const menuLabel =
     pathname.startsWith("/dashboard/user/cars")
       ? "Cars"
+      : pathname.startsWith("/dashboard/user/settings") ||
+          pathname.startsWith("/dashboard/mechanic/settings") ||
+          pathname.startsWith("/dashboard/settings")
+        ? "Settings"
       : pathname.startsWith("/dashboard/mechanic/appointments")
         ? "Appointments"
         : "Dashboard";
@@ -20,6 +24,10 @@ export function Navbar() {
       ? "Single car: service status and history."
       : pathname.startsWith("/dashboard/user/cars")
         ? "My cars and total spend."
+        : pathname.startsWith("/dashboard/user/settings") ||
+            pathname.startsWith("/dashboard/mechanic/settings") ||
+            pathname.startsWith("/dashboard/settings")
+          ? "Manage your profile information."
         : pathname.startsWith("/dashboard/mechanic/appointments")
           ? "Appointments and history by date."
           : pathname.startsWith("/dashboard/mechanic/service/")
@@ -30,10 +38,12 @@ export function Navbar() {
       ? [
           { href: "/dashboard/mechanic", label: "Dashboard" },
           { href: "/dashboard/mechanic/appointments", label: "Appointments" },
+          { href: "/dashboard/mechanic/settings", label: "Settings" },
         ]
       : [
           { href: "/dashboard/user", label: "Dashboard" },
           { href: "/dashboard/user/cars", label: "Cars" },
+          { href: "/dashboard/user/settings", label: "Settings" },
         ];
   const activeHref =
     links

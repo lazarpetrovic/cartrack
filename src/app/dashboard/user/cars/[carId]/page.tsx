@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/src/hooks/useAuth";
 import { getMechanics, type MechanicProfile } from "@/src/lib/auth";
 import {
+  createMaintenanceChangeRequestForOwner,
   deleteCarForUser,
   getCarByIdForUser,
   getMaintenanceForCar,
@@ -20,6 +21,7 @@ import {
   type MaintenanceEntry,
   type RepairRequest,
 } from "@/src/lib/cars";
+import { useToast } from "@/src/context/ToastContext";
 import {
   Card,
   CardContent,
@@ -33,6 +35,7 @@ import { Modal } from "@/src/components/ui/modal";
 
 export default function VehicleDetailsPage() {
   const { user } = useAuth();
+  const { showError, showToast } = useToast();
   const router = useRouter();
   const params = useParams<{ carId: string }>();
   const carId = useMemo(() => params?.carId ?? "", [params]);
@@ -48,6 +51,8 @@ export default function VehicleDetailsPage() {
   const [schedulingRepair, setSchedulingRepair] = useState(false);
   const [confirmingDropOffId, setConfirmingDropOffId] = useState<string | null>(null);
   const [confirmingPickupId, setConfirmingPickupId] = useState<string | null>(null);
+  const [requestingMaintenanceFix, setRequestingMaintenanceFix] = useState(false);
+  const [maintenanceFixNote, setMaintenanceFixNote] = useState("");
   const [selectedMaintenance, setSelectedMaintenance] = useState<MaintenanceEntry | null>(null);
   const [carForm, setCarForm] = useState<Omit<Car, "id" | "ownerId">>({
     make: "",
@@ -279,6 +284,27 @@ export default function VehicleDetailsPage() {
       );
     } finally {
       setConfirmingDropOffId(null);
+    }
+  };
+
+  const handleRequestMaintenanceFix = async () => {
+    if (!user || !selectedMaintenance) return;
+    const note = maintenanceFixNote.trim();
+    if (!note) {
+      showError("Please describe what should be corrected.");
+      return;
+    }
+    try {
+      setRequestingMaintenanceFix(true);
+      await createMaintenanceChangeRequestForOwner(user.uid, selectedMaintenance, note);
+      setMaintenanceFixNote("");
+      showToast("Change request sent to the mechanic.", "success");
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Could not send change request.";
+      showError(message);
+    } finally {
+      setRequestingMaintenanceFix(false);
     }
   };
 
@@ -818,7 +844,10 @@ export default function VehicleDetailsPage() {
 
       <Modal
         open={selectedMaintenance !== null}
-        onClose={() => setSelectedMaintenance(null)}
+        onClose={() => {
+          setSelectedMaintenance(null);
+          setMaintenanceFixNote("");
+        }}
         title={selectedMaintenance ? selectedMaintenance.title : "Maintenance details"}
       >
         {selectedMaintenance ? (
@@ -902,6 +931,31 @@ export default function VehicleDetailsPage() {
                   ? selectedMaintenance.notes
                   : "No additional notes were provided for this service."}
               </p>
+            </div>
+
+            <div className="rounded-lg border border-amber-400/35 bg-amber-500/10 p-3">
+              <p className="mb-1 text-[11px] uppercase tracking-wide text-amber-200">
+                Request correction
+              </p>
+              <p className="text-xs text-amber-100/90">
+                If this entry has incorrect data, send a correction request to the mechanic.
+              </p>
+              <textarea
+                value={maintenanceFixNote}
+                onChange={(e) => setMaintenanceFixNote(e.target.value)}
+                placeholder="Describe what needs to be corrected..."
+                className="mt-2 min-h-20 w-full rounded-md border border-amber-300/35 bg-background/50 px-3 py-2 text-sm text-foreground outline-none ring-amber-200/20 transition focus:border-amber-300/60 focus:ring-2"
+              />
+              <div className="mt-2 flex justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void handleRequestMaintenanceFix()}
+                  disabled={requestingMaintenanceFix || !maintenanceFixNote.trim()}
+                >
+                  {requestingMaintenanceFix ? "Sending..." : "Send request"}
+                </Button>
+              </div>
             </div>
 
             <div className="flex justify-end">

@@ -17,10 +17,12 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
       ? [
           { href: "/dashboard/mechanic", label: "Dashboard" },
           { href: "/dashboard/mechanic/appointments", label: "Appointments" },
+          { href: "/dashboard/mechanic/settings", label: "Settings" },
         ]
       : [
           { href: "/dashboard/user", label: "Dashboard" },
           { href: "/dashboard/user/cars", label: "Cars" },
+          { href: "/dashboard/user/settings", label: "Settings" },
         ];
   const activeHref =
     links
