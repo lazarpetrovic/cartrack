@@ -45,19 +45,19 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
           CT
         </div>
         {!collapsed && (
-          <span className="text-[0.95rem] font-semibold tracking-tight text-foreground">
+          <span className="text-lg font-semibold tracking-tight text-foreground">
             CarTrack
           </span>
         )}
       </div>
-      <nav className="space-y-1 text-[0.9rem]">
+      <nav className="space-y-2">
         {links.map((link) => {
           const active = activeHref === link.href;
           return (
             <Link
               key={link.href}
               href={link.href}
-              className={`flex items-center gap-2 rounded-md px-2.5 py-2 text-[0.8rem] font-medium transition-colors hover:bg-muted hover:text-foreground ${
+              className={`flex items-center gap-2 rounded-md px-3 py-2.5 text-base font-medium transition-colors hover:bg-muted hover:text-foreground ${
                 active ? "bg-muted text-foreground" : "text-muted-foreground"
               }`}
             >
@@ -69,7 +69,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
 
       <div className="mt-auto border-t border-border/70 pt-3">
         {!collapsed && user ? (
-          <div className="mb-2 rounded-md border border-border/60 bg-background/40 px-2.5 py-2 text-[0.75rem]">
+          <div className="mb-2 rounded-md border border-border/60 bg-background/40 px-3 py-3 text-sm">
             <p className="truncate font-medium text-foreground">
               {user.email ?? "Signed in"}
             </p>

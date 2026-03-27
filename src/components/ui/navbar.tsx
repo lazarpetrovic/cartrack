@@ -13,26 +13,26 @@ export function Navbar() {
         : "Dashboard";
   const contextText =
     pathname.startsWith("/dashboard/user/cars/")
-      ? "Track one vehicle status and service flow."
+      ? "Single car: service status and history."
       : pathname.startsWith("/dashboard/user/cars")
-        ? "Manage your vehicles and total spend."
+        ? "My cars and total spend."
         : pathname.startsWith("/dashboard/mechanic/appointments")
-          ? "Review planned/completed work by date."
+          ? "Appointments and history by date."
           : pathname.startsWith("/dashboard/mechanic/service/")
             ? "Add maintenance and finish service."
-            : "Track your services and maintenance history.";
+            : "Clear overview of current activity.";
 
   return (
     <motion.header
-      className="flex h-20 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur"
+      className="flex h-24 items-center justify-between border-b border-border bg-background/80 px-5 backdrop-blur"
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
     >
       <div className="flex flex-col">
-        <span className="text-sm font-normal text-muted-foreground">
+        <span className="text-base font-normal text-muted-foreground">
           {contextText}
         </span>
-        <span className="text-md font-semibold text-foreground">
+        <span className="text-2xl font-semibold text-foreground">
           {menuLabel}
         </span>
       </div>

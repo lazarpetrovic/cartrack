@@ -20,7 +20,19 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const PUBLIC_ROUTES = ["/login", "/signup", "/"];
+const PUBLIC_ROUTE_PREFIXES = ["/", "/login", "/signup", "/product", "/how-it-works"];
+const AUTH_ROUTES = ["/login", "/signup"];
+
+function getDashboardPathByRole(role: UserRole) {
+  return role === "mechanic" ? "/dashboard/mechanic" : "/dashboard/user";
+}
+
+function isPublicRoute(pathname: string) {
+  if (pathname === "/") return true;
+  return PUBLIC_ROUTE_PREFIXES.filter((route) => route !== "/").some((route) => {
+    return pathname === route || pathname.startsWith(`${route}/`);
+  });
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
@@ -34,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setLoading(false);
 
-        if (!PUBLIC_ROUTES.includes(pathname)) {
+        if (!isPublicRoute(pathname)) {
           router.replace("/login");
         }
         return;
@@ -50,6 +62,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role,
       }));
       setLoading(false);
+
+      if (AUTH_ROUTES.includes(pathname) || pathname === "/dashboard") {
+        router.replace(getDashboardPathByRole(role));
+      }
     });
 
     return () => unsubscribe();

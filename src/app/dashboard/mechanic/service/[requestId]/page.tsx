@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/src/hooks/useAuth";
+import { useToast } from "@/src/context/ToastContext";
 import {
   addMaintenanceForCar,
   getCarById,
@@ -30,6 +31,7 @@ type MaintenanceType =
 
 export default function MechanicServicePage() {
   const { user } = useAuth();
+  const { showError } = useToast();
   const router = useRouter();
   const params = useParams<{ requestId: string }>();
   const requestId = useMemo(() => params?.requestId ?? "", [params]);
@@ -107,7 +109,7 @@ export default function MechanicServicePage() {
     const latestMileage = latestVehicleMileage;
     const mileageNumber = Number(maintenanceMileage) || 0;
     if (mileageNumber < latestMileage) {
-      alert(`Mileage must be at least latest mileage (${latestMileage} km).`);
+      showError(`Mileage must be at least latest mileage (${latestMileage} km).`);
       return;
     }
 

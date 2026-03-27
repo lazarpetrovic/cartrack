@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/src/hooks/useAuth";
-import { motion } from "framer-motion";
+import { useToast } from "@/src/context/ToastContext";
 import {
   Card,
   CardContent,
@@ -22,6 +22,7 @@ import {
 
 export default function MechanicDashboardPage() {
   const { user } = useAuth();
+  const { showError } = useToast();
   const router = useRouter();
   const [todayRequests, setTodayRequests] = useState<RepairRequest[]>([]);
   const [todayVehicles, setTodayVehicles] = useState<RepairRequest[]>([]);
@@ -65,13 +66,14 @@ export default function MechanicDashboardPage() {
     void run();
   }, [user, todayDate]);
 
-  const pendingCount = useMemo(
-    () => todayRequests.filter((r) => r.status === "scheduled").length,
-    [todayRequests]
-  );
   const scheduledRequests = useMemo(
     () => todayRequests.filter((r) => r.status === "scheduled"),
     [todayRequests]
+  );
+  const pendingCount = scheduledRequests.length;
+  const activeVehicles = useMemo(
+    () => todayVehicles.filter((r) => r.status === "dropped_off" || r.status === "in_progress"),
+    [todayVehicles]
   );
   const readyForPickupCount = useMemo(
     () => todayVehicles.filter((r) => r.status === "ready_for_pickup").length,
@@ -85,7 +87,7 @@ export default function MechanicDashboardPage() {
     if (!user) return;
     const dropOffDate = acceptDates[requestId];
     if (status === "accepted" && !dropOffDate) {
-      alert("Please choose a drop-off date before accepting.");
+      showError("Please choose a drop-off date before accepting.");
       return;
     }
     setUpdatingId(requestId);
@@ -126,22 +128,19 @@ export default function MechanicDashboardPage() {
     }
   };
 
-  const getStatusPillClass = (status: RepairRequest["status"]) => {
-    if (status === "accepted") {
-      return "border border-emerald-400/30 bg-emerald-500/10 text-emerald-300";
-    }
-    if (status === "rejected") {
-      return "border border-rose-400/30 bg-rose-500/10 text-rose-300";
-    }
-    if (status === "ready_for_pickup") {
-      return "border border-sky-400/30 bg-sky-500/10 text-sky-300";
-    }
-    return "border border-slate-500/30 bg-slate-500/10 text-slate-300";
+  const getStatusText = (status: RepairRequest["status"]) => {
+    if (status === "scheduled") return "New request";
+    if (status === "accepted") return "Awaiting drop-off";
+    if (status === "dropped_off") return "Dropped off";
+    if (status === "in_progress") return "In service";
+    if (status === "ready_for_pickup") return "Ready for pickup";
+    if (status === "rejected") return "Rejected";
+    return status.replace("_", " ");
   };
 
   const handleStartService = async (request: RepairRequest) => {
     if (!user) return;
-    if (request.status === "accepted") {
+    if (request.status === "dropped_off") {
       await markRepairInProgress(user.uid, request.id);
       setTodayRequests((prev) =>
         prev.map((r) => (r.id === request.id ? { ...r, status: "in_progress" } : r))
@@ -154,222 +153,137 @@ export default function MechanicDashboardPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          Mechanic workspace
-        </h1>
-        <p className="text-xs text-muted-foreground">
-          Manage incoming service requests and stay on top of your clients.
-        </p>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">
+            Mechanic - today overview
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Two things: process new requests and start services for today's vehicles.
+          </p>
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.15 }}>
-          <Card>
-            <CardHeader>
-              <CardTitle>New requests today</CardTitle>
-              <CardDescription>Waiting for your decision</CardDescription>
-            </CardHeader>
-            <CardContent className="text-2xl font-semibold">
-              {pendingCount}
-            </CardContent>
-          </Card>
-        </motion.div>
-        <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.15 }}>
-          <Card>
-            <CardHeader>
-              <CardTitle>Vehicles for today</CardTitle>
-              <CardDescription>Drop-off list for {todayDate}</CardDescription>
-            </CardHeader>
-            <CardContent className="text-2xl font-semibold">
-              {todayVehicles.length}
-            </CardContent>
-          </Card>
-        </motion.div>
-        <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.15 }}>
-          <Card>
-            <CardHeader>
-              <CardTitle>Ready for pickup</CardTitle>
-              <CardDescription>Finished and waiting owner</CardDescription>
-            </CardHeader>
-            <CardContent className="text-2xl font-semibold">
-              {readyForPickupCount}
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-
-      <motion.section
-        className="space-y-3"
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
-            <div>
-              <CardTitle>Today&apos;s vehicles for repair</CardTitle>
-              <CardDescription>
-                Work planned for today, including active services and finished pickups.
-              </CardDescription>
-            </div>
+            <CardTitle>New requests today</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {vehiclesLoading ? (
-              <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-4 text-sm text-muted-foreground">
-                Loading today&apos;s vehicles...
-              </div>
-            ) : todayVehicles.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-4 text-sm text-muted-foreground">
-                No vehicles scheduled for today.
-              </div>
-            ) : (
-              todayVehicles.map((request) => (
-                <div
-                  key={request.id}
-                  className="flex items-start justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
-                      {request.carLabel || "Vehicle"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Client: {request.ownerName || "Car owner"}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">{request.note}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {(request.status === "accepted" || request.status === "in_progress") && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-2 text-[11px]"
-                        onClick={() => void handleStartService(request)}
-                      >
-                        {request.status === "in_progress" ? "Continue service" : "Start service"}
-                      </Button>
-                    )}
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-1 text-[0.72rem] font-medium capitalize ${getStatusPillClass(
-                        request.status
-                      )}`}
-                    >
-                      {request.status}
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
-          </CardContent>
+          <CardContent className="text-3xl font-semibold">{pendingCount}</CardContent>
         </Card>
-      </motion.section>
-
-      <div className="flex flex-col">
-        {(loading || scheduledRequests.length > 0) && (
-          <motion.section
-            className="space-y-3"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <Card>
-              <CardHeader>
-                <div>
-                  <CardTitle>Requests sent today</CardTitle>
-                  <CardDescription>Incoming requests created today</CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-hidden rounded-lg border border-border/60 bg-background/40">
-                  <table className="min-w-full text-left text-xs">
-                    <thead className="bg-muted/60 text-sm uppercase text-muted-foreground">
-                      <tr>
-                        <th className="px-3 py-2">Client</th>
-                        <th className="px-3 py-2">Car</th>
-                        <th className="px-3 py-2">Issue</th>
-                        <th className="px-3 py-2">Status</th>
-                        <th className="px-3 py-2">Drop-off date</th>
-                        <th className="px-3 py-2 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {loading ? (
-                        <tr className="border-t border-border/40 text-sm text-muted-foreground">
-                          <td className="px-3 py-4" colSpan={6}>
-                            Loading today&apos;s requests...
-                          </td>
-                        </tr>
-                      ) : (
-                        scheduledRequests.map((req) => (
-                          <tr
-                            key={req.id}
-                            className="border-t border-border/40 text-sm text-foreground/90"
-                          >
-                            <td className="px-3 py-2">{req.ownerName || "Car owner"}</td>
-                            <td className="px-3 py-2">{req.carLabel || "Vehicle"}</td>
-                            <td className="px-3 py-2 text-muted-foreground">
-                              {req.note}
-                            </td>
-                            <td className="px-3 py-2">
-                              <span
-                                className={`inline-flex rounded-full px-2.5 py-1 text-[0.72rem] font-medium capitalize ${getStatusPillClass(
-                                  req.status
-                                )}`}
-                              >
-                                {req.status}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2 text-muted-foreground">
-                              {req.status === "accepted" && req.dropOffDate ? (
-                                req.dropOffDate
-                              ) : req.status === "scheduled" ? (
-                                <input
-                                  type="date"
-                                  value={acceptDates[req.id] ?? ""}
-                                  onChange={(e) =>
-                                    setAcceptDates((prev) => ({
-                                      ...prev,
-                                      [req.id]: e.target.value,
-                                    }))
-                                  }
-                                  className="h-7 rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2"
-                                />
-                              ) : (
-                                "-"
-                              )}
-                            </td>
-                            <td className="px-3 py-2 text-right">
-                              <div className="flex justify-end gap-1.5">
-                                <Button
-                                  type="button"
-                                  className="py-4 px-2.5 text-md bg-gray-500"
-                                  onClick={() => handleStatus(req.id, "rejected")}
-                                  disabled={updatingId === req.id || req.status !== "scheduled"}
-                                >
-                                  {updatingId === req.id ? "Updating..." : "Reject date"}
-                                </Button>
-                                <Button
-                                  type="button"
-                                  className="py-4 px-2.5 text-md"
-                                  onClick={() => handleStatus(req.id, "accepted")}
-                                  disabled={updatingId === req.id || req.status !== "scheduled"}
-                                >
-                                  {updatingId === req.id ? "Updating..." : "Accept date"}
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.section>
-        )}
-
+        <Card>
+          <CardHeader>
+            <CardTitle>Active vehicles today</CardTitle>
+          </CardHeader>
+          <CardContent className="text-3xl font-semibold">{activeVehicles.length}</CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Ready for pickup</CardTitle>
+          </CardHeader>
+          <CardContent className="text-3xl font-semibold">{readyForPickupCount}</CardContent>
+        </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>New requests (today)</CardTitle>
+          <CardDescription>Accept or reject with one click.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {loading ? (
+            <div className="rounded-lg border border-dashed border-border/70 bg-background/40 px-4 py-5 text-sm text-muted-foreground">
+              Loading requests...
+            </div>
+          ) : scheduledRequests.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border/70 bg-background/40 px-4 py-5 text-sm text-muted-foreground">
+              No new requests today.
+            </div>
+          ) : (
+            scheduledRequests.map((req) => (
+              <div
+                key={req.id}
+                className="rounded-lg border border-border/70 bg-background/40 px-4 py-3"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-base font-semibold text-foreground">
+                      {req.ownerName || "Owner"} - {req.carLabel || "Vehicle"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">{req.note}</p>
+                  </div>
+                  <p className="text-sm font-medium text-muted-foreground">{getStatusText(req.status)}</p>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <input
+                    type="date"
+                    value={acceptDates[req.id] ?? ""}
+                    onChange={(e) =>
+                      setAcceptDates((prev) => ({
+                        ...prev,
+                        [req.id]: e.target.value,
+                      }))
+                    }
+                    className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none ring-primary/10 transition focus:border-primary focus:ring-2"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleStatus(req.id, "rejected")}
+                    disabled={updatingId === req.id}
+                  >
+                    Reject
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => handleStatus(req.id, "accepted")}
+                    disabled={updatingId === req.id}
+                  >
+                    {updatingId === req.id ? "Saving..." : "Accept"}
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Vehicles for service (today)</CardTitle>
+          <CardDescription>Click Start service and finish through the maintenance form.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {vehiclesLoading ? (
+            <div className="rounded-lg border border-dashed border-border/70 bg-background/40 px-4 py-5 text-sm text-muted-foreground">
+              Loading vehicles...
+            </div>
+          ) : activeVehicles.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border/70 bg-background/40 px-4 py-5 text-sm text-muted-foreground">
+              No active vehicles for today.
+            </div>
+          ) : (
+            activeVehicles.map((request) => (
+              <div
+                key={request.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/40 px-4 py-3"
+              >
+                <div>
+                  <p className="text-base font-semibold text-foreground">
+                    {request.carLabel || "Vehicle"} - {request.ownerName || "Owner"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">{getStatusText(request.status)}</p>
+                </div>
+                <Button type="button" onClick={() => void handleStartService(request)}>
+                  {request.status === "in_progress" ? "Continue service" : "Start service"}
+                </Button>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/src/context/AuthContext";
+import { ToastProvider } from "@/src/context/ToastContext";
 
 export const metadata: Metadata = {
   title: "CarTrack - Car Service Tracking",
@@ -16,7 +17,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="bg-zinc-50 text-zinc-900 antialiased">
         <AuthProvider>
-          {children}
+          <ToastProvider>{children}</ToastProvider>
         </AuthProvider>
       </body>
     </html>
